@@ -1,3 +1,15 @@
+/* 
+This file is licensed to you under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(http://opensource.org/licenses/MIT), at your option.
+
+Unless required by applicable law or agreed to in writing, this software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS OF
+ANY KIND, either express or implied. See the LICENSE-MIT and LICENSE-APACHE
+files for the specific language governing permissions and limitations under
+each license.
+*/
+
 /// C2PA Flutter Plugin - Content Authenticity for Mobile Apps
 ///
 /// This library provides a Flutter interface to the C2PA (Coalition for Content
@@ -274,7 +286,7 @@ class CallbackSigner extends C2paSigner {
 /// - iOS: iOS Keychain
 ///
 /// The key must already exist in the keystore/keychain before creating
-/// the signer. Use [C2pa.createKeystoreKey] to generate a new key.
+/// the signer. Use [C2pa.createKey] to generate a new key.
 ///
 /// ## Example
 ///
