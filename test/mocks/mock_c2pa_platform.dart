@@ -83,9 +83,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     }
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Version and Platform Info
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<String?> getPlatformVersion() async {
@@ -101,9 +101,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return c2paVersion;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Reader API - Basic
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<String?> readFile(String path) async {
@@ -119,9 +119,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return mockManifestJson ?? _generateMockManifestJson('bytes');
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Reader API - Enhanced
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<String?> readFileDetailed(
@@ -194,9 +194,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return supportedSignMimeTypes;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Signer API - Basic
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<SignResult> signBytes({
@@ -238,9 +238,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     _checkError();
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Builder API
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<ManifestBuilder> createBuilder(String manifestJson) async {
@@ -398,9 +398,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     builders.remove(handle);
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Advanced Signing API
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<Uint8List> createHashedPlaceholder({
@@ -460,9 +460,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return mockReserveSize;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Key Management API
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<bool> isHardwareSigningAvailable() async {
@@ -506,9 +506,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return '-----BEGIN PUBLIC KEY-----\nMockPublicKey\n-----END PUBLIC KEY-----';
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Settings API - Legacy
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<void> loadSettings(String settings, String format) async {
@@ -516,9 +516,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     _checkError();
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Settings API - Handle-based
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<int> createSettings() async {
@@ -563,9 +563,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     settings.remove(handle);
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Context API - Handle-based
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<int> createContext() async {
@@ -595,9 +595,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     contexts.remove(handle);
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Enhanced Reader API - Context-based
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<String?> readFileWithContext(
@@ -616,9 +616,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return mockManifestJson ?? _generateMockManifestJson(path);
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Enhanced Builder API - Context/Settings-based
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<ManifestBuilder> createBuilderWithContext(
@@ -654,9 +654,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return builder;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Certificate Manager API
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<String> createSelfSignedCertificateChain({
@@ -671,9 +671,9 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return mockCertificateChain;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Helper Methods
-  // ===========================================================================
+  // =============================================================================
 
   String _generateMockManifestJson(String source) {
     return jsonEncode({

@@ -147,9 +147,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Version and Platform Info
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleGetPlatformVersion(result: Result) {
         result.success("Android ${android.os.Build.VERSION.RELEASE}")
@@ -160,13 +160,13 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
             val version = C2PA.version()
             result.success(version)
         } catch (e: Exception) {
-            result.success("unknown")
+            result.error("C2PA_ERROR", "Failed to get version: ${e.message}", null)
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Reader API - Basic
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleReadFile(call: MethodCall, result: Result) {
         val path = call.argument<String>("path")
@@ -204,9 +204,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Reader API - Enhanced
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleReadFileDetailed(call: MethodCall, result: Result) {
         val path = call.argument<String>("path")
@@ -340,9 +340,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         result.success(mimeTypes)
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Signer API - Basic
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleSignBytes(call: MethodCall, result: Result) {
         val sourceData = call.argument<ByteArray>("sourceData")
@@ -493,9 +493,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Builder API
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleCreateBuilder(call: MethodCall, result: Result) {
         val manifestJson = call.argument<String>("manifestJson")
@@ -996,9 +996,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Advanced Signing API
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleCreateHashedPlaceholder(call: MethodCall, result: Result) {
         val handle = call.argument<Int>("handle")
@@ -1144,9 +1144,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Settings API
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleLoadSettings(call: MethodCall, result: Result) {
         val settings = call.argument<String>("settings")
@@ -1167,9 +1167,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Settings Handle API
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleCreateSettings(result: Result) {
         try {
@@ -1254,9 +1254,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Context Handle API
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleCreateContext(result: Result) {
         try {
@@ -1314,9 +1314,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Enhanced Reader with Context
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleReadFileWithContext(call: MethodCall, result: Result) {
         val path = call.argument<String>("path")
@@ -1352,9 +1352,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Enhanced Builder with Context/Settings
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleCreateBuilderWithContext(call: MethodCall, result: Result) {
         val contextHandle = call.argument<Int>("contextHandle")
@@ -1408,9 +1408,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Certificate Manager
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleCreateSelfSignedCertificateChain(call: MethodCall, result: Result) {
         // Self-signed certificate chain generation is not directly available
@@ -1418,9 +1418,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         result.error("UNSUPPORTED", "createSelfSignedCertificateChain is not supported on Android", null)
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Helper Functions
-    // ===========================================================================
+    // =============================================================================
 
     private fun parseAlgorithm(algorithmStr: String): SigningAlgorithm {
         return when (algorithmStr) {
@@ -1541,9 +1541,6 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         val tsaUrl = map["tsaUrl"] as String?
         val requireUserAuthentication = map["requireUserAuthentication"] as? Boolean ?: false
 
-        android.util.Log.d("C2paPlugin", "Creating hardware signer for key: $keyAlias")
-        android.util.Log.d("C2paPlugin", "Cert chain length: ${certificateChainPem.length}, starts with: ${certificateChainPem.take(50)}")
-
         val config = StrongBoxSigner.Config(
             keyTag = keyAlias,
             requireUserAuthentication = requireUserAuthentication
@@ -1570,8 +1567,12 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
     private suspend fun createRemoteSigner(map: Map<String, Any?>): Signer {
         val configurationUrl = map["configurationUrl"] as String
         val bearerToken = map["bearerToken"] as String?
-        @Suppress("UNCHECKED_CAST")
-        val customHeaders = (map["customHeaders"] as? Map<String, String>) ?: emptyMap()
+        val rawHeaders = map["customHeaders"]
+        val customHeaders = if (rawHeaders is Map<*, *>) {
+            rawHeaders.entries.associate { (k, v) -> k.toString() to v.toString() }
+        } else {
+            emptyMap<String, String>()
+        }
 
         val webServiceSigner = WebServiceSigner(configurationUrl, bearerToken, customHeaders)
         return webServiceSigner.createSigner()
@@ -1611,9 +1612,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Key Management API
-    // ===========================================================================
+    // =============================================================================
 
     private fun handleIsHardwareSigningAvailable(result: Result) {
         try {
@@ -1848,12 +1849,10 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
 
                 // Delete existing key to ensure fresh enrollment
                 if (keyStore.containsAlias(keyAlias)) {
-                    android.util.Log.d("C2paPlugin", "Deleting existing key: $keyAlias")
                     keyStore.deleteEntry(keyAlias)
                 }
 
                 // Create hardware key
-                android.util.Log.d("C2paPlugin", "Creating hardware key: $keyAlias, useStrongBox: $useStrongBox")
                 if (useStrongBox) {
                     val config = StrongBoxSigner.Config(
                         keyTag = keyAlias,
@@ -1898,15 +1897,8 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
                     connection.disconnect()
 
-                    android.util.Log.d("C2paPlugin", "Server response: $response")
-
                     val responseJson = org.json.JSONObject(response)
                     val certChain = responseJson.getString("certificate_chain")
-
-                    // Count certificates in chain
-                    val certCount = certChain.split("-----BEGIN CERTIFICATE-----").size - 1
-                    android.util.Log.d("C2paPlugin", "Enrollment successful, cert chain length: ${certChain.length}, cert count: $certCount")
-                    android.util.Log.d("C2paPlugin", "Cert chain starts with: ${certChain.take(200)}")
 
                     val resultMap = HashMap<String, Any?>()
                     resultMap["certificateChain"] = certChain
@@ -1932,9 +1924,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Builder Handle Management
-    // ===========================================================================
+    // =============================================================================
 
     private fun storeBuilder(builder: Builder): Int {
         builderLock.lock()
@@ -1965,9 +1957,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Settings Handle Management
-    // ===========================================================================
+    // =============================================================================
 
     private fun storeSettings(settingsObj: C2PASettings): Int {
         settingsLock.lock()
@@ -1998,9 +1990,9 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ===========================================================================
+    // =============================================================================
     // Context Handle Management
-    // ===========================================================================
+    // =============================================================================
 
     private fun storeContext(contextObj: C2PAContext): Int {
         contextLock.lock()

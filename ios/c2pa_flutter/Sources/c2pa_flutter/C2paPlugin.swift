@@ -1344,19 +1344,22 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         case "update":
             return .update
         default:
-            return .edit
+            let sourceType = mapDigitalSourceType(digitalSourceType) ?? .digitalCapture
+            return .create(sourceType)
         }
     }
 
     private func mapDigitalSourceType(_ str: String?) -> DigitalSourceType? {
         guard let str = str else { return nil }
         switch str {
+        case "empty": return .empty
         case "algorithmicallyEnhanced": return .algorithmicallyEnhanced
         case "algorithmicMedia": return .algorithmicMedia
         case "composite": return .composite
         case "compositeCapture": return .compositeCapture
         case "compositeSynthetic": return .compositeSynthetic
         case "compositeWithTrainedAlgorithmicMedia": return .compositeWithTrainedAlgorithmicMedia
+        case "computationalCapture": return .computationalCapture
         case "dataDrivenMedia": return .dataDrivenMedia
         case "digitalCreation": return .digitalCreation
         case "digitalCapture": return .digitalCapture
@@ -1365,6 +1368,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         case "positiveFilm": return .positiveFilm
         case "print": return .print
         case "screenCapture": return .screenCapture
+        case "trainedAlgorithmicData": return .trainedAlgorithmicData
         case "trainedAlgorithmicMedia": return .trainedAlgorithmicMedia
         case "virtualRecording": return .virtualRecording
         default: return nil

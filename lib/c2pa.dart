@@ -129,10 +129,6 @@ enum ManifestIntent {
 enum ValidationStatus { valid, invalid, unknown }
 
 // =============================================================================
-// Core Data Classes
-// =============================================================================
-
-// =============================================================================
 // Signer Types
 // =============================================================================
 
@@ -198,13 +194,14 @@ class PemSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'pem',
       'algorithm': algorithm.name,
       'certificatePem': certificatePem,
       'privateKeyPem': privateKeyPem,
-      'tsaUrl': tsaUrl,
     };
+    if (tsaUrl != null) map['tsaUrl'] = tsaUrl;
+    return map;
   }
 
   factory PemSigner.fromMap(Map<String, dynamic> map) {
@@ -260,12 +257,13 @@ class CallbackSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'callback',
       'algorithm': algorithm.name,
       'certificateChainPem': certificateChainPem,
-      'tsaUrl': tsaUrl,
     };
+    if (tsaUrl != null) map['tsaUrl'] = tsaUrl;
+    return map;
   }
 }
 
@@ -320,14 +318,15 @@ class KeystoreSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'keystore',
       'algorithm': algorithm.name,
       'certificateChainPem': certificateChainPem,
       'keyAlias': keyAlias,
       'requireUserAuthentication': requireUserAuthentication,
-      'tsaUrl': tsaUrl,
     };
+    if (tsaUrl != null) map['tsaUrl'] = tsaUrl;
+    return map;
   }
 }
 
@@ -381,14 +380,15 @@ class HardwareSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'hardware',
       'algorithm': algorithm.name,
       'certificateChainPem': certificateChainPem,
       'keyAlias': keyAlias,
       'requireUserAuthentication': requireUserAuthentication,
-      'tsaUrl': tsaUrl,
     };
+    if (tsaUrl != null) map['tsaUrl'] = tsaUrl;
+    return map;
   }
 }
 
@@ -441,12 +441,13 @@ class RemoteSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'remote',
       'configurationUrl': configurationUrl,
-      'bearerToken': bearerToken,
-      'customHeaders': customHeaders,
     };
+    if (bearerToken != null) map['bearerToken'] = bearerToken;
+    if (customHeaders != null) map['customHeaders'] = customHeaders;
+    return map;
   }
 }
 
@@ -583,7 +584,7 @@ class ValidationError {
   /// The manifest label this error relates to (if applicable)
   final String? manifestLabel;
 
-  ValidationError({
+  const ValidationError({
     required this.code,
     required this.message,
     this.manifestLabel,
@@ -649,7 +650,7 @@ class IngredientInfo {
   /// Validation status of the ingredient
   final ValidationStatus validationStatus;
 
-  IngredientInfo({
+  const IngredientInfo({
     this.title,
     this.format,
     this.instanceId,
@@ -662,14 +663,9 @@ class IngredientInfo {
 
   factory IngredientInfo.fromMap(Map<String, dynamic> map) {
     final relationshipStr = map['relationship'] as String?;
-    Relationship relationship;
-    if (relationshipStr == 'parentOf') {
-      relationship = Relationship.parentOf;
-    } else if (relationshipStr == 'inputTo') {
-      relationship = Relationship.inputTo;
-    } else {
-      relationship = Relationship.componentOf;
-    }
+    final relationship = relationshipStr != null
+        ? Relationship.fromJson(relationshipStr)
+        : Relationship.componentOf;
 
     return IngredientInfo(
       title: map['title'] as String?,
@@ -730,7 +726,7 @@ class ManifestInfo {
   /// Thumbnail URI if present
   final String? thumbnailUri;
 
-  ManifestInfo({
+  const ManifestInfo({
     required this.label,
     this.title,
     this.format,
@@ -781,7 +777,7 @@ class ManifestStoreInfo {
   /// Overall validation status
   final ValidationStatus validationStatus;
 
-  ManifestStoreInfo({
+  const ManifestStoreInfo({
     this.activeManifest,
     this.manifests = const {},
     this.validationErrors = const [],
@@ -945,12 +941,13 @@ class BuilderOptions {
   });
 
   Map<String, dynamic> toMap() {
-    return {
-      'intent': intent?.name,
-      'digitalSourceType': digitalSourceType?.url,
+    final map = <String, dynamic>{
       'embed': embed,
-      'remoteUrl': remoteUrl,
     };
+    if (intent != null) map['intent'] = intent!.name;
+    if (digitalSourceType != null) map['digitalSourceType'] = digitalSourceType!.url;
+    if (remoteUrl != null) map['remoteUrl'] = remoteUrl;
+    return map;
   }
 }
 
@@ -1307,11 +1304,11 @@ class CertificateConfig {
 ///
 /// - [ManifestBuilder] for manifest creation
 /// - [ManifestStoreInfo] for reading manifest data
-/// - [SignerInfo] for signing configuration
+/// - [C2paSigner] for signing configuration
 class C2pa {
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Version and Platform Info
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Get the platform version (iOS/Android version)
   Future<String?> getPlatformVersion() {
@@ -1323,9 +1320,9 @@ class C2pa {
     return C2paPlatform.instance.getVersion();
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Reader API - Basic
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Read C2PA manifest from a file path
   ///
@@ -1341,9 +1338,9 @@ class C2pa {
     return C2paPlatform.instance.readBytes(data, mimeType);
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Reader API - Enhanced
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Read manifest from a file with detailed information
   ///
@@ -1406,9 +1403,9 @@ class C2pa {
     return C2paPlatform.instance.getSupportedSignMimeTypes();
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Signer API - Basic
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Sign image bytes with a C2PA manifest
   ///
@@ -1442,9 +1439,9 @@ class C2pa {
     );
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Builder API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Create a new manifest builder from a JSON manifest definition
   Future<ManifestBuilder> createBuilder(String manifestJson) {
@@ -1456,9 +1453,9 @@ class C2pa {
     return C2paPlatform.instance.createBuilderFromArchive(archiveData);
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Advanced Signing API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Create a hashed placeholder for later signing
   ///
@@ -1522,9 +1519,9 @@ class C2pa {
     return C2paPlatform.instance.getSignerReserveSize(signer);
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Key Management API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Check if hardware-backed signing is available on this device.
   ///
@@ -1644,9 +1641,9 @@ class C2pa {
     );
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Settings API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Load C2PA settings from a configuration string
   ///
@@ -1655,9 +1652,9 @@ class C2pa {
     return C2paPlatform.instance.loadSettings(settings, format);
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Enhanced Reader API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Read manifest from a file using a shared [C2paContext].
   ///
@@ -1679,9 +1676,9 @@ class C2pa {
     return ManifestStoreInfo.fromJson(json);
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Enhanced Builder API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Create a builder from a shared [C2paContext].
   ///
@@ -1712,9 +1709,9 @@ class C2pa {
     );
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Certificate Manager API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Create a self-signed certificate chain for testing.
   ///

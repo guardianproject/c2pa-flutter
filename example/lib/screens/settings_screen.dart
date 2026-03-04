@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:c2pa_flutter/c2pa.dart';
 import '../services/c2pa_manager.dart';
 
+/// Settings screen for configuring C2PA signing mode and credentials.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -24,22 +25,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Hardware controllers
   final _hardwareAliasController = TextEditingController();
   final _hardwareCertController = TextEditingController();
-  final _hardwareServerUrlController = TextEditingController(
-    text: 'https://zbjspd6jfv.us-east-2.awsapprunner.com',
-  );
-  final _hardwareBearerTokenController = TextEditingController(
-    text: '2d0c8b6b66c47c3b215976cc808296269322558c6d533d9ce6f3c45a9ccfe811',
-  );
+  final _hardwareServerUrlController = TextEditingController();
+  final _hardwareBearerTokenController = TextEditingController();
 
   bool _isEnrolling = false;
 
   // Remote controllers
-  final _remoteUrlController = TextEditingController(
-    text: 'https://zbjspd6jfv.us-east-2.awsapprunner.com/api/v1/c2pa/configuration',
-  );
-  final _bearerTokenController = TextEditingController(
-    text: '2d0c8b6b66c47c3b215976cc808296269322558c6d533d9ce6f3c45a9ccfe811',
-  );
+  final _remoteUrlController = TextEditingController();
+  final _bearerTokenController = TextEditingController();
 
   // Settings signer controllers
   final _settingsJsonController = TextEditingController();
@@ -121,12 +114,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final cert = await rootBundle.loadString('assets/test_certs/test_es256_cert.pem');
       final key = await rootBundle.loadString('assets/test_certs/test_es256_key.pem');
+      if (!mounted) return;
       setState(() {
         _certController.text = cert;
         _keyController.text = key;
       });
       _showSnackBar('Test certificates loaded');
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Failed to load test certificates: $e');
     }
   }
@@ -148,12 +143,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         certificateChainPem: cert,
       );
 
+      if (!mounted) return;
       setState(() {
         _keystoreAliasController.text = keyAlias;
         _keystoreCertController.text = cert;
       });
       _showSnackBar('Test key imported to keystore');
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Failed to import key: $e');
     }
   }
@@ -186,6 +183,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       final certChain = result['certificateChain'] as String;
 
+      if (!mounted) return;
       setState(() {
         _hardwareAliasController.text = keyAlias;
         _hardwareCertController.text = certChain;
@@ -199,9 +197,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       _showSnackBar('Hardware key enrolled successfully');
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Enrollment failed: $e');
     } finally {
-      setState(() => _isEnrolling = false);
+      if (mounted) {
+        setState(() => _isEnrolling = false);
+      }
     }
   }
 

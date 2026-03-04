@@ -8,6 +8,7 @@ import 'settings_screen.dart';
 import 'verify_screen.dart';
 import 'camera_screen.dart';
 
+/// Main screen with camera and gallery buttons for capturing and signing images.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -33,7 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onManagerUpdate() {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _showSuccessOverlay(String message) {
@@ -56,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(builder: (context) => const CameraScreen()),
     );
 
-    if (result != null) {
+    if (result != null && mounted) {
       await _signAndSaveImage(result);
     }
   }
@@ -64,8 +67,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
-    
-    if (image != null) {
+
+    if (image != null && mounted) {
       final bytes = await image.readAsBytes();
       await _signAndSaveImage(bytes);
     }

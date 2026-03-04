@@ -793,7 +793,7 @@ class C2paManager extends ChangeNotifier {
     }
 
     // Sign directly - ECDSA is fast enough for main thread
-    final result = _signDataInIsolate(
+    final result = _signDataSync(
       _SigningParams(data: data, privateKeyPem: _defaultPrivateKey!),
     );
 
@@ -803,7 +803,7 @@ class C2paManager extends ChangeNotifier {
 
 }
 
-/// Parameters for signing in isolate
+/// Parameters for synchronous signing
 class _SigningParams {
   final Uint8List data;
   final String privateKeyPem;
@@ -811,8 +811,8 @@ class _SigningParams {
   _SigningParams({required this.data, required this.privateKeyPem});
 }
 
-/// Static function to run in isolate
-Uint8List _signDataInIsolate(_SigningParams params) {
+/// Synchronous ECDSA signing using pointycastle
+Uint8List _signDataSync(_SigningParams params) {
   // Parse the PKCS#8 private key
   final privateKey = _parsePrivateKeyStatic(params.privateKeyPem);
 

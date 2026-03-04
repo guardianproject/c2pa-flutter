@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 
+/// Root widget for the C2PA example application.
 class C2paExampleApp extends StatelessWidget {
   const C2paExampleApp({super.key});
 

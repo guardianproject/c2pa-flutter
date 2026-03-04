@@ -45,6 +45,14 @@ enum PredefinedAction {
 
   const PredefinedAction(this.value);
   final String value;
+
+  static PredefinedAction? fromValue(String? value) {
+    if (value == null) return null;
+    return PredefinedAction.values.cast<PredefinedAction?>().firstWhere(
+      (e) => e?.value == value,
+      orElse: () => null,
+    );
+  }
 }
 
 /// Relationship type for ingredients
@@ -74,6 +82,8 @@ enum Role {
 
   const Role(this.value);
   final String value;
+
+  String toJson() => value;
 
   static Role? fromJson(String? value) {
     if (value == null) return null;
@@ -173,6 +183,14 @@ enum ImageRegionType {
 
   const ImageRegionType(this.url);
   final String url;
+
+  static ImageRegionType? fromUrl(String? url) {
+    if (url == null) return null;
+    return ImageRegionType.values.cast<ImageRegionType?>().firstWhere(
+      (e) => e?.url == url,
+      orElse: () => null,
+    );
+  }
 }
 
 /// Standard assertion labels
@@ -255,6 +273,8 @@ enum TrainingMiningPermission {
 
   const TrainingMiningPermission(this.value);
   final String value;
+
+  String toJson() => value;
 
   static TrainingMiningPermission fromJson(String value) {
     return TrainingMiningPermission.values.firstWhere(
@@ -1430,6 +1450,8 @@ class TrainingMiningEntry {
 
 /// Base class for assertion definitions
 sealed class AssertionDefinition {
+  const AssertionDefinition();
+
   /// The assertion label
   String get label;
 
@@ -1467,7 +1489,7 @@ class ActionsAssertion extends AssertionDefinition {
   final List<Action> actions;
   final Metadata? metadata;
 
-  ActionsAssertion({required this.actions, this.metadata});
+  const ActionsAssertion({required this.actions, this.metadata});
 
   @override
   Map<String, dynamic> toJson() {
@@ -1595,7 +1617,7 @@ class TrainingMiningAssertion extends AssertionDefinition {
   final List<TrainingMiningEntry> entries;
   final Metadata? metadata;
 
-  TrainingMiningAssertion({required this.entries, this.metadata});
+  const TrainingMiningAssertion({required this.entries, this.metadata});
 
   @override
   Map<String, dynamic> toJson() {
@@ -1661,7 +1683,7 @@ class CawgTrainingMiningAssertion extends AssertionDefinition {
   final List<CawgTrainingMiningEntry> entries;
   final Metadata? metadata;
 
-  CawgTrainingMiningAssertion({required this.entries, this.metadata});
+  const CawgTrainingMiningAssertion({required this.entries, this.metadata});
 
   @override
   Map<String, dynamic> toJson() {

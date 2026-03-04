@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:c2pa_flutter/src/manifest_types.dart';
+import 'manifest_types.dart';
 
 /// Result of a validation operation
 class ValidationResult {
@@ -18,14 +18,15 @@ class ValidationResult {
 ///
 /// Checks for compliance with C2PA 2.3 specification and CAWG requirements.
 class ManifestValidator {
-  static const deprecatedAssertionLabels = {
+  /// Assertion labels that are deprecated in C2PA 2.x.
+  static const Set<String> deprecatedAssertionLabels = {
     'stds.exif',
     'stds.iptc.photo-metadata',
     'stds.schema-org.CreativeWork',
     'c2pa.endorsement',
   };
 
-  static const _deprecatedReplacements = {
+  static const Map<String, String> _deprecatedReplacements = {
     'stds.exif':
         'Consider using c2pa.metadata or embedding EXIF in the asset directly.',
     'stds.iptc.photo-metadata': 'Consider using c2pa.metadata instead.',
@@ -34,7 +35,8 @@ class ManifestValidator {
         'Endorsement assertions are no longer supported in C2PA 2.x.',
   };
 
-  static const recommendedClaimVersion = 2;
+  /// Recommended claim_version for C2PA 2.x manifests.
+  static const int recommendedClaimVersion = 2;
 
   /// Validates a [ManifestDefinition] for C2PA 2.3 spec compliance.
   static ValidationResult validate(ManifestDefinition manifest) {

@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:c2pa_flutter/c2pa.dart';
 import '../services/c2pa_manager.dart';
 
+/// Screen for verifying C2PA manifests embedded in images.
 class VerifyScreen extends StatefulWidget {
   const VerifyScreen({super.key});
 
@@ -25,7 +26,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
 
-    if (image != null) {
+    if (image != null && mounted) {
       await _verifyFile(image.path);
     }
   }
@@ -60,6 +61,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
     try {
       // Try enhanced reader for structured data
       final storeInfo = await _manager.readManifestEnhanced(path);
+      if (!mounted) return;
       if (storeInfo != null && storeInfo.active != null) {
         setState(() {
           _storeInfo = storeInfo;
@@ -70,6 +72,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
       // Fall back to raw JSON reader
       final rawJson = await _manager.readManifest(path);
+      if (!mounted) return;
       if (rawJson != null) {
         // Try parsing raw JSON into structured data
         try {
@@ -91,6 +94,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;

@@ -1,15 +1,15 @@
 import 'dart:convert';
 
-import 'package:c2pa_flutter/src/manifest_validator.dart';
+import 'manifest_validator.dart';
 
 /// Validates C2PA settings JSON for schema compliance.
 ///
 /// Checks settings against the C2PA settings schema documented at:
 /// https://opensource.contentauthenticity.org/docs/c2pa-rs/settings
 class SettingsValidator {
-  static const supportedVersion = 1;
+  static const int supportedVersion = 1;
 
-  static const validAlgorithms = {
+  static const Set<String> _validAlgorithms = {
     'es256',
     'es384',
     'es512',
@@ -19,11 +19,11 @@ class SettingsValidator {
     'ed25519',
   };
 
-  static const validThumbnailFormats = {'jpeg', 'png', 'webp'};
-  static const validThumbnailQualities = {'low', 'medium', 'high'};
-  static const validIntentStrings = {'Edit', 'Update'};
+  static const Set<String> _validThumbnailFormats = {'jpeg', 'png', 'webp'};
+  static const Set<String> _validThumbnailQualities = {'low', 'medium', 'high'};
+  static const Set<String> _validIntentStrings = {'Edit', 'Update'};
 
-  static const validSourceTypes = {
+  static const Set<String> _validSourceTypes = {
     'empty',
     'digitalCapture',
     'negativeFilm',
@@ -257,9 +257,9 @@ class SettingsValidator {
 
   static void _validateIntent(dynamic intent, List<String> errors) {
     if (intent is String) {
-      if (!validIntentStrings.contains(intent)) {
+      if (!_validIntentStrings.contains(intent)) {
         errors.add(
-          "builder.intent string must be one of: ${validIntentStrings.join(', ')}, "
+          "builder.intent string must be one of: ${_validIntentStrings.join(', ')}, "
           "got '$intent'",
         );
       }
@@ -270,9 +270,9 @@ class SettingsValidator {
           "builder.intent object must have 'Create' key with source type value",
         );
       } else if (createValue is String &&
-          !validSourceTypes.contains(createValue)) {
+          !_validSourceTypes.contains(createValue)) {
         errors.add(
-          "builder.intent Create source type must be one of: ${validSourceTypes.join(', ')}, "
+          "builder.intent Create source type must be one of: ${_validSourceTypes.join(', ')}, "
           "got '$createValue'",
         );
       }
@@ -305,17 +305,17 @@ class SettingsValidator {
     }
 
     final format = thumbnail['format'];
-    if (format is String && !validThumbnailFormats.contains(format)) {
+    if (format is String && !_validThumbnailFormats.contains(format)) {
       errors.add(
-        "builder.thumbnail.format must be one of: ${validThumbnailFormats.join(', ')}, "
+        "builder.thumbnail.format must be one of: ${_validThumbnailFormats.join(', ')}, "
         "got '$format'",
       );
     }
 
     final quality = thumbnail['quality'];
-    if (quality is String && !validThumbnailQualities.contains(quality)) {
+    if (quality is String && !_validThumbnailQualities.contains(quality)) {
       errors.add(
-        "builder.thumbnail.quality must be one of: ${validThumbnailQualities.join(', ')}, "
+        "builder.thumbnail.quality must be one of: ${_validThumbnailQualities.join(', ')}, "
         "got '$quality'",
       );
     }
@@ -382,9 +382,9 @@ class SettingsValidator {
     }
 
     final alg = local['alg'];
-    if (alg is String && !validAlgorithms.contains(alg.toLowerCase())) {
+    if (alg is String && !_validAlgorithms.contains(alg.toLowerCase())) {
       errors.add(
-        "$path.alg must be one of: ${validAlgorithms.join(', ')}, got '$alg'",
+        "$path.alg must be one of: ${_validAlgorithms.join(', ')}, got '$alg'",
       );
     }
 
@@ -433,9 +433,9 @@ class SettingsValidator {
     }
 
     final alg = remote['alg'];
-    if (alg is String && !validAlgorithms.contains(alg.toLowerCase())) {
+    if (alg is String && !_validAlgorithms.contains(alg.toLowerCase())) {
       errors.add(
-        "$path.alg must be one of: ${validAlgorithms.join(', ')}, got '$alg'",
+        "$path.alg must be one of: ${_validAlgorithms.join(', ')}, got '$alg'",
       );
     }
 

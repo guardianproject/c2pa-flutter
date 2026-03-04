@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 
+/// Camera capture screen that returns captured image bytes.
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
 
