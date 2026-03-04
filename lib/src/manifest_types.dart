@@ -19,6 +19,8 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
+
 // =============================================================================
 // Enums
 // =============================================================================
@@ -301,6 +303,7 @@ enum TrainingMiningPermission {
 // =============================================================================
 
 /// 2D coordinate
+@immutable
 class Coordinate {
   final double x;
   final double y;
@@ -329,6 +332,7 @@ class Coordinate {
 }
 
 /// Spatial shape definition
+@immutable
 class Shape {
   final ShapeType type;
   final Coordinate? origin;
@@ -432,6 +436,7 @@ class Shape {
 }
 
 /// Frame range for video content
+@immutable
 class Frame {
   final int start;
   final int? end;
@@ -450,6 +455,7 @@ class Frame {
 }
 
 /// Time range for temporal regions
+@immutable
 class Time {
   final TimeType type;
   final String start;
@@ -473,6 +479,7 @@ class Time {
 }
 
 /// Text selector for textual regions
+@immutable
 class TextSelector {
   final String fragment;
   final int? start;
@@ -497,7 +504,10 @@ class TextSelector {
 }
 
 /// Range definition for regions of interest
+@immutable
 sealed class RegionRange {
+  const RegionRange();
+
   Map<String, dynamic> toJson();
 
   static RegionRange fromJson(Map<String, dynamic> json) {
@@ -517,10 +527,11 @@ sealed class RegionRange {
 }
 
 /// Spatial region range
+@immutable
 class SpatialRange extends RegionRange {
   final Shape shape;
 
-  SpatialRange({required this.shape});
+  const SpatialRange({required this.shape});
 
   @override
   Map<String, dynamic> toJson() => {'shape': shape.toJson()};
@@ -533,10 +544,11 @@ class SpatialRange extends RegionRange {
 }
 
 /// Temporal region range
+@immutable
 class TemporalRange extends RegionRange {
   final Time time;
 
-  TemporalRange({required this.time});
+  const TemporalRange({required this.time});
 
   @override
   Map<String, dynamic> toJson() => {'time': time.toJson()};
@@ -549,10 +561,11 @@ class TemporalRange extends RegionRange {
 }
 
 /// Frame-based region range
+@immutable
 class FrameRange extends RegionRange {
   final Frame frame;
 
-  FrameRange({required this.frame});
+  const FrameRange({required this.frame});
 
   @override
   Map<String, dynamic> toJson() => {'frame': frame.toJson()};
@@ -565,10 +578,11 @@ class FrameRange extends RegionRange {
 }
 
 /// Text-based region range
+@immutable
 class TextualRange extends RegionRange {
   final TextSelector text;
 
-  TextualRange({required this.text});
+  const TextualRange({required this.text});
 
   @override
   Map<String, dynamic> toJson() => {'text': text.toJson()};
@@ -581,10 +595,11 @@ class TextualRange extends RegionRange {
 }
 
 /// Identified region range (by reference ID)
+@immutable
 class IdentifiedRange extends RegionRange {
   final String id;
 
-  IdentifiedRange({required this.id});
+  const IdentifiedRange({required this.id});
 
   @override
   Map<String, dynamic> toJson() => {'id': id};
@@ -595,6 +610,7 @@ class IdentifiedRange extends RegionRange {
 }
 
 /// Region of interest in content
+@immutable
 class RegionOfInterest {
   final List<RegionRange> region;
   final String? description;
@@ -692,6 +708,7 @@ class RegionOfInterest {
 }
 
 /// Hashed URI reference
+@immutable
 class HashedUri {
   final String url;
   final String? alg;
@@ -716,6 +733,7 @@ class HashedUri {
 }
 
 /// Resource reference for manifest resources
+@immutable
 class ResourceRef {
   final String identifier;
   final String? format;
@@ -737,6 +755,7 @@ class ResourceRef {
 }
 
 /// Resource data for adding resources to a manifest
+@immutable
 class ResourceData {
   final String identifier;
   final Uint8List data;
@@ -750,6 +769,7 @@ class ResourceData {
 }
 
 /// Asset type information
+@immutable
 class AssetType {
   final String type;
 
@@ -763,6 +783,7 @@ class AssetType {
 }
 
 /// Data source information
+@immutable
 class DataSource {
   final String type;
   final String? details;
@@ -791,6 +812,7 @@ class DataSource {
 }
 
 /// Validation status entry
+@immutable
 class ValidationStatusEntry {
   final String code;
   final String? url;
@@ -815,6 +837,7 @@ class ValidationStatusEntry {
 }
 
 /// Detailed validation results
+@immutable
 class ValidationResults {
   final List<ValidationStatusEntry> errors;
   final List<ValidationStatusEntry> warnings;
@@ -932,6 +955,7 @@ enum ValidationStatusCode {
 }
 
 /// Assertion metadata
+@immutable
 class Metadata {
   final DateTime? dateTime;
   final String? reviewRatings;
@@ -973,6 +997,7 @@ class Metadata {
 // =============================================================================
 
 /// An action performed on content
+@immutable
 class Action {
   /// The action identifier (use PredefinedAction.value or custom string)
   final String action;
@@ -1201,6 +1226,7 @@ class Action {
 // =============================================================================
 
 /// An ingredient (source material) in a manifest
+@immutable
 class Ingredient {
   final String? title;
   final String? format;
@@ -1340,6 +1366,7 @@ class Ingredient {
 // =============================================================================
 
 /// Information about the software that created the manifest
+@immutable
 class ClaimGeneratorInfo {
   final String name;
   final String? version;
@@ -1373,6 +1400,7 @@ class ClaimGeneratorInfo {
 // =============================================================================
 
 /// Entry for AI training/mining permissions
+@immutable
 class TrainingMiningEntry {
   final String use;
   final TrainingMiningPermission permission;
@@ -1461,6 +1489,7 @@ class TrainingMiningEntry {
 // =============================================================================
 
 /// Base class for assertion definitions
+@immutable
 sealed class AssertionDefinition {
   const AssertionDefinition();
 
@@ -1494,6 +1523,7 @@ sealed class AssertionDefinition {
 }
 
 /// Actions assertion
+@immutable
 class ActionsAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.actions.value;
@@ -1527,6 +1557,7 @@ class ActionsAssertion extends AssertionDefinition {
 }
 
 /// Creative work assertion (schema.org)
+@immutable
 class CreativeWorkAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.creativeWork.value;
@@ -1539,7 +1570,7 @@ class CreativeWorkAssertion extends AssertionDefinition {
   final String? license;
   final Map<String, dynamic>? additionalData;
 
-  CreativeWorkAssertion({
+  const CreativeWorkAssertion({
     this.context = 'https://schema.org/',
     this.type = 'CreativeWork',
     this.author,
@@ -1588,13 +1619,14 @@ class CreativeWorkAssertion extends AssertionDefinition {
 }
 
 /// EXIF metadata assertion
+@immutable
 class ExifAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.exif.value;
 
   final Map<String, dynamic> data;
 
-  ExifAssertion({required this.data});
+  const ExifAssertion({required this.data});
 
   @override
   Map<String, dynamic> toJson() => {'label': label, 'data': data};
@@ -1605,13 +1637,14 @@ class ExifAssertion extends AssertionDefinition {
 }
 
 /// IPTC Photo Metadata assertion
+@immutable
 class IptcPhotoMetadataAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.iptcPhotoMetadata.value;
 
   final Map<String, dynamic> data;
 
-  IptcPhotoMetadataAssertion({required this.data});
+  const IptcPhotoMetadataAssertion({required this.data});
 
   @override
   Map<String, dynamic> toJson() => {'label': label, 'data': data};
@@ -1622,6 +1655,7 @@ class IptcPhotoMetadataAssertion extends AssertionDefinition {
 }
 
 /// Training/mining permission assertion
+@immutable
 class TrainingMiningAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.trainingMining.value;
@@ -1655,13 +1689,14 @@ class TrainingMiningAssertion extends AssertionDefinition {
 }
 
 /// Custom assertion with arbitrary data
+@immutable
 class CustomAssertion extends AssertionDefinition {
   @override
   final String label;
 
   final Map<String, dynamic> data;
 
-  CustomAssertion({required this.label, required this.data});
+  const CustomAssertion({required this.label, required this.data});
 
   @override
   Map<String, dynamic> toJson() => {'label': label, 'data': data};
@@ -1671,13 +1706,14 @@ class CustomAssertion extends AssertionDefinition {
 ///
 /// Per the CAWG specification, identity assertions MUST be placed in
 /// [ManifestDefinition.gatheredAssertions], not in [ManifestDefinition.assertions].
+@immutable
 class CawgIdentityAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.cawgIdentity.value;
 
   final Map<String, dynamic> data;
 
-  CawgIdentityAssertion({required this.data});
+  const CawgIdentityAssertion({required this.data});
 
   @override
   Map<String, dynamic> toJson() => {'label': label, 'data': data};
@@ -1688,6 +1724,7 @@ class CawgIdentityAssertion extends AssertionDefinition {
 }
 
 /// CAWG AI training and data mining assertion
+@immutable
 class CawgTrainingMiningAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.cawgTrainingMining.value;
@@ -1724,6 +1761,7 @@ class CawgTrainingMiningAssertion extends AssertionDefinition {
 }
 
 /// Entry for CAWG AI training and data mining permissions
+@immutable
 class CawgTrainingMiningEntry {
   final String use;
   final TrainingMiningPermission permission;
@@ -1774,6 +1812,7 @@ class CawgTrainingMiningEntry {
 // =============================================================================
 
 /// Complete manifest definition for building C2PA manifests
+@immutable
 class ManifestDefinition {
   final String title;
   final List<ClaimGeneratorInfo> claimGeneratorInfo;

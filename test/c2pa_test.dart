@@ -153,7 +153,7 @@ void main() {
     late Uint8List testData;
 
     setUp(() {
-      signer = PemSigner(
+      signer = const PemSigner(
         algorithm: SigningAlgorithm.es256,
         certificatePem:
             '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
@@ -177,7 +177,7 @@ void main() {
     });
 
     test('signBytes with TSA URL', () async {
-      final signerWithTsa = PemSigner(
+      final signerWithTsa = const PemSigner(
         algorithm: SigningAlgorithm.es256,
         certificatePem:
             '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
@@ -246,7 +246,7 @@ void main() {
     late Uint8List testData;
 
     setUp(() {
-      signer = PemSigner(
+      signer = const PemSigner(
         algorithm: SigningAlgorithm.es256,
         certificatePem:
             '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
@@ -266,7 +266,7 @@ void main() {
     test('createBuilder with ManifestDefinition.created', () async {
       final manifest = ManifestDefinition.created(
         title: 'Digital Photo',
-        claimGenerator: ClaimGeneratorInfo(name: 'TestApp', version: '1.0.0'),
+        claimGenerator: const ClaimGeneratorInfo(name: 'TestApp', version: '1.0.0'),
         sourceType: DigitalSourceType.digitalCapture,
       );
 
@@ -283,12 +283,12 @@ void main() {
     test('createBuilder with ManifestDefinition.edited', () async {
       final manifest = ManifestDefinition.edited(
         title: 'Edited Photo',
-        claimGenerator: ClaimGeneratorInfo(name: 'PhotoEditor', version: '2.0'),
+        claimGenerator: const ClaimGeneratorInfo(name: 'PhotoEditor', version: '2.0'),
         actions: [
           Action.cropped(softwareAgent: 'PhotoEditor/2.0'),
           Action.filtered(
             softwareAgent: 'PhotoEditor/2.0',
-            parameters: {'filter': 'brightness'},
+            parameters: const {'filter': 'brightness'},
           ),
         ],
       );

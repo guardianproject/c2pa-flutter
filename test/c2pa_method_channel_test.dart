@@ -20,7 +20,7 @@ import 'package:c2pa_flutter/c2pa_method_channel.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  MethodChannelC2pa platform = MethodChannelC2pa();
+  final MethodChannelC2pa platform = MethodChannelC2pa();
   const MethodChannel channel = MethodChannel('org.guardianproject.c2pa');
 
   setUp(() {
@@ -89,7 +89,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -113,13 +113,13 @@ void main() {
       final builder = await platform.createBuilder('{}');
 
       builder.addAction(
-        ActionConfig(action: 'c2pa.created', softwareAgent: 'TestApp/1.0'),
+        const ActionConfig(action: 'c2pa.created', softwareAgent: 'TestApp/1.0'),
       );
 
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -148,7 +148,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -171,7 +171,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -195,12 +195,12 @@ void main() {
 
       builder.setIntent(ManifestIntent.create);
       builder.setNoEmbed();
-      builder.addAction(ActionConfig(action: 'c2pa.created'));
+      builder.addAction(const ActionConfig(action: 'c2pa.created'));
 
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -239,7 +239,7 @@ void main() {
       expect(() => builder.setNoEmbed(), throwsStateError);
       expect(() => builder.setRemoteUrl('url'), throwsStateError);
       expect(
-        () => builder.addAction(ActionConfig(action: 'test')),
+        () => builder.addAction(const ActionConfig(action: 'test')),
         throwsStateError,
       );
     });
@@ -278,7 +278,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -292,7 +292,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',

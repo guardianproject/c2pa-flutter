@@ -103,6 +103,8 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
+
 import 'c2pa_platform_interface.dart';
 import 'src/manifest_types.dart';
 
@@ -153,6 +155,8 @@ enum ValidationStatus { valid, invalid, unknown }
 /// - [HardwareSigner] - Hardware-backed signing (StrongBox/Secure Enclave)
 /// - [RemoteSigner] - Remote web service signing
 sealed class C2paSigner {
+  const C2paSigner();
+
   /// The signing algorithm to use.
   SigningAlgorithm get algorithm;
 
@@ -184,6 +188,7 @@ sealed class C2paSigner {
 /// - ECDSA: [SigningAlgorithm.es256], [SigningAlgorithm.es384], [SigningAlgorithm.es512]
 /// - RSA-PSS: [SigningAlgorithm.ps256], [SigningAlgorithm.ps384], [SigningAlgorithm.ps512]
 /// - EdDSA: [SigningAlgorithm.ed25519]
+@immutable
 class PemSigner extends C2paSigner {
   @override
   final SigningAlgorithm algorithm;
@@ -197,7 +202,7 @@ class PemSigner extends C2paSigner {
   @override
   final String? tsaUrl;
 
-  PemSigner({
+  const PemSigner({
     required this.algorithm,
     required this.certificatePem,
     required this.privateKeyPem,
@@ -246,6 +251,7 @@ class PemSigner extends C2paSigner {
 ///   },
 /// );
 /// ```
+@immutable
 class CallbackSigner extends C2paSigner {
   @override
   final SigningAlgorithm algorithm;
@@ -260,7 +266,7 @@ class CallbackSigner extends C2paSigner {
   @override
   final String? tsaUrl;
 
-  CallbackSigner({
+  const CallbackSigner({
     required this.algorithm,
     required this.certificateChainPem,
     required this.signCallback,
@@ -303,6 +309,7 @@ class CallbackSigner extends C2paSigner {
 ///
 /// - Ed25519 is not supported on either platform for keystore signing
 /// - On Android with [requireUserAuthentication], a biometric prompt is shown
+@immutable
 class KeystoreSigner extends C2paSigner {
   @override
   final SigningAlgorithm algorithm;
@@ -320,7 +327,7 @@ class KeystoreSigner extends C2paSigner {
   @override
   final String? tsaUrl;
 
-  KeystoreSigner({
+  const KeystoreSigner({
     required this.algorithm,
     required this.certificateChainPem,
     required this.keyAlias,
@@ -365,6 +372,7 @@ class KeystoreSigner extends C2paSigner {
 ///   );
 /// }
 /// ```
+@immutable
 class HardwareSigner extends C2paSigner {
   /// Hardware signing only supports ES256.
   @override
@@ -383,7 +391,7 @@ class HardwareSigner extends C2paSigner {
   @override
   final String? tsaUrl;
 
-  HardwareSigner({
+  const HardwareSigner({
     required this.certificateChainPem,
     required this.keyAlias,
     this.requireUserAuthentication = false,
@@ -479,6 +487,7 @@ class RemoteSigner extends C2paSigner {
 ///   format: 'json',
 /// );
 /// ```
+@immutable
 class SettingsSigner extends C2paSigner {
   /// The settings string containing signer configuration.
   final String settingsString;
@@ -494,7 +503,7 @@ class SettingsSigner extends C2paSigner {
   @override
   String? get tsaUrl => null;
 
-  SettingsSigner({required this.settingsString, this.format = 'json'});
+  const SettingsSigner({required this.settingsString, this.format = 'json'});
 
   @override
   Map<String, dynamic> toMap() {
@@ -507,11 +516,12 @@ class SettingsSigner extends C2paSigner {
 }
 
 /// Result of a signing operation
+@immutable
 class SignResult {
   final Uint8List signedData;
   final Uint8List? manifestBytes;
 
-  SignResult({required this.signedData, this.manifestBytes});
+  const SignResult({required this.signedData, this.manifestBytes});
 
   /// Size of the signed data in bytes
   int get signedDataSize => signedData.length;
@@ -525,6 +535,7 @@ class SignResult {
 // =============================================================================
 
 /// Options for reading manifests
+@immutable
 class ReaderOptions {
   /// Whether to return detailed JSON including validation info
   final bool detailed;
@@ -540,6 +551,7 @@ class ReaderOptions {
 }
 
 /// Signature information from a manifest
+@immutable
 class SignatureInfo {
   /// The issuer of the certificate
   final String? issuer;
@@ -556,7 +568,7 @@ class SignatureInfo {
   /// The certificate serial number
   final String? serialNumber;
 
-  SignatureInfo({
+  const SignatureInfo({
     this.issuer,
     this.signedAt,
     this.expiresAt,
@@ -586,6 +598,7 @@ class SignatureInfo {
 }
 
 /// Validation error from manifest verification
+@immutable
 class ValidationError {
   /// Error code
   final String code;
@@ -615,6 +628,7 @@ class ValidationError {
 }
 
 /// Information about an assertion in a manifest
+@immutable
 class AssertionInfo {
   /// The assertion label (e.g., "c2pa.actions")
   final String label;
@@ -625,7 +639,7 @@ class AssertionInfo {
   /// Instance identifier if present
   final int? instance;
 
-  AssertionInfo({required this.label, required this.data, this.instance});
+  const AssertionInfo({required this.label, required this.data, this.instance});
 
   factory AssertionInfo.fromMap(Map<String, dynamic> map) {
     return AssertionInfo(
@@ -637,6 +651,7 @@ class AssertionInfo {
 }
 
 /// Information about an ingredient in a manifest
+@immutable
 class IngredientInfo {
   /// Title of the ingredient
   final String? title;
@@ -710,6 +725,7 @@ class IngredientInfo {
 }
 
 /// Information about a single manifest
+@immutable
 class ManifestInfo {
   /// The manifest label (unique identifier)
   final String label;
@@ -776,6 +792,7 @@ class ManifestInfo {
 }
 
 /// Complete manifest store with all manifests and validation info
+@immutable
 class ManifestStoreInfo {
   /// The active manifest label
   final String? activeManifest;
@@ -844,6 +861,7 @@ class ManifestStoreInfo {
 ///
 /// This differs from [ResourceRef] in manifest_types.dart which is used
 /// for references within the manifest JSON structure.
+@immutable
 class BuilderResource {
   /// URI identifier for the resource
   final String uri;
@@ -854,7 +872,7 @@ class BuilderResource {
   /// Optional MIME type
   final String? mimeType;
 
-  BuilderResource({required this.uri, required this.data, this.mimeType});
+  const BuilderResource({required this.uri, required this.data, this.mimeType});
 
   Map<String, dynamic> toMap() {
     return {'uri': uri, 'data': data, 'mimeType': mimeType};
@@ -862,6 +880,7 @@ class BuilderResource {
 }
 
 /// Configuration for adding an ingredient to a builder
+@immutable
 class IngredientConfig {
   /// Title of the ingredient
   final String? title;
@@ -875,7 +894,7 @@ class IngredientConfig {
   /// Additional JSON data for the ingredient
   final Map<String, dynamic>? additionalData;
 
-  IngredientConfig({
+  const IngredientConfig({
     this.title,
     this.relationship = Relationship.componentOf,
     this.thumbnail,
@@ -893,6 +912,7 @@ class IngredientConfig {
 }
 
 /// Configuration for adding an action to a builder
+@immutable
 class ActionConfig {
   /// The action identifier (e.g., "c2pa.created", "c2pa.edited")
   final String action;
@@ -909,7 +929,7 @@ class ActionConfig {
   /// Additional parameters
   final Map<String, dynamic>? parameters;
 
-  ActionConfig({
+  const ActionConfig({
     required this.action,
     this.when,
     this.softwareAgent,
@@ -932,6 +952,7 @@ class ActionConfig {
 }
 
 /// Options for building manifests
+@immutable
 class BuilderOptions {
   /// The intent for this manifest
   final ManifestIntent? intent;
@@ -964,6 +985,7 @@ class BuilderOptions {
 }
 
 /// Result from builder sign operations
+@immutable
 class BuilderSignResult {
   /// The signed asset data
   final Uint8List signedData;
@@ -974,7 +996,7 @@ class BuilderSignResult {
   /// Size of the C2PA manifest data
   final int manifestSize;
 
-  BuilderSignResult({
+  const BuilderSignResult({
     required this.signedData,
     this.manifestBytes,
     required this.manifestSize,
@@ -982,11 +1004,12 @@ class BuilderSignResult {
 }
 
 /// Archive data from a builder (for serialization)
+@immutable
 class BuilderArchive {
   /// The archive data
   final Uint8List data;
 
-  BuilderArchive({required this.data});
+  const BuilderArchive({required this.data});
 }
 
 // =============================================================================
@@ -1236,6 +1259,7 @@ class C2paContext {
 // =============================================================================
 
 /// Configuration for X.509 certificate generation
+@immutable
 class CertificateConfig {
   final String commonName;
   final String? organization;
