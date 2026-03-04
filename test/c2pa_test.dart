@@ -1,3 +1,15 @@
+/* 
+This file is licensed to you under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(http://opensource.org/licenses/MIT), at your option.
+
+Unless required by applicable law or agreed to in writing, this software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS OF
+ANY KIND, either express or implied. See the LICENSE-MIT and LICENSE-APACHE
+files for the specific language governing permissions and limitations under
+each license.
+*/
+
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -141,7 +153,7 @@ void main() {
     late Uint8List testData;
 
     setUp(() {
-      signer = PemSigner(
+      signer = const PemSigner(
         algorithm: SigningAlgorithm.es256,
         certificatePem:
             '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
@@ -165,7 +177,7 @@ void main() {
     });
 
     test('signBytes with TSA URL', () async {
-      final signerWithTsa = PemSigner(
+      final signerWithTsa = const PemSigner(
         algorithm: SigningAlgorithm.es256,
         certificatePem:
             '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
@@ -234,7 +246,7 @@ void main() {
     late Uint8List testData;
 
     setUp(() {
-      signer = PemSigner(
+      signer = const PemSigner(
         algorithm: SigningAlgorithm.es256,
         certificatePem:
             '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
@@ -254,7 +266,10 @@ void main() {
     test('createBuilder with ManifestDefinition.created', () async {
       final manifest = ManifestDefinition.created(
         title: 'Digital Photo',
-        claimGenerator: ClaimGeneratorInfo(name: 'TestApp', version: '1.0.0'),
+        claimGenerator: const ClaimGeneratorInfo(
+          name: 'TestApp',
+          version: '1.0.0',
+        ),
         sourceType: DigitalSourceType.digitalCapture,
       );
 
@@ -271,12 +286,15 @@ void main() {
     test('createBuilder with ManifestDefinition.edited', () async {
       final manifest = ManifestDefinition.edited(
         title: 'Edited Photo',
-        claimGenerator: ClaimGeneratorInfo(name: 'PhotoEditor', version: '2.0'),
+        claimGenerator: const ClaimGeneratorInfo(
+          name: 'PhotoEditor',
+          version: '2.0',
+        ),
         actions: [
           Action.cropped(softwareAgent: 'PhotoEditor/2.0'),
           Action.filtered(
             softwareAgent: 'PhotoEditor/2.0',
-            parameters: {'filter': 'brightness'},
+            parameters: const {'filter': 'brightness'},
           ),
         ],
       );
@@ -813,6 +831,286 @@ void main() {
         expect(info.validationErrors.first.code, 'ERR001');
         expect(info.validationStatus, ValidationStatus.invalid);
       });
+    });
+  });
+
+  group('SettingsSigner', () {
+    test(
+      'toMap serializes with type settings, settings string, and format',
+      () {
+        final signer = SettingsSigner(
+          settingsString: '{"signer": "config"}',
+          format: 'json',
+        );
+
+        final map = signer.toMap();
+        expect(map['type'], 'settings');
+        expect(map['settings'], '{"signer": "config"}');
+        expect(map['format'], 'json');
+      },
+    );
+
+    test('default format is json', () {
+      final signer = SettingsSigner(settingsString: '{"signer": "config"}');
+
+      expect(signer.format, 'json');
+      expect(signer.toMap()['format'], 'json');
+    });
+
+    test('algorithm returns es256', () {
+      final signer = SettingsSigner(settingsString: '{"signer": "config"}');
+
+      expect(signer.algorithm, SigningAlgorithm.es256);
+    });
+  });
+
+  group('C2paSettings', () {
+    test('create() returns settings with valid handle', () async {
+      final settings = await C2paSettings.create();
+      expect(settings.handle, greaterThan(0));
+      expect(mockPlatform.methodCalls.last.method, 'createSettings');
+    });
+
+    test('updateFromString() records call with correct arguments', () async {
+      final settings = await C2paSettings.create();
+      await settings.updateFromString('{"verify": true}', 'json');
+
+      final call = mockPlatform.methodCalls.last;
+      expect(call.method, 'settingsUpdateFromString');
+      expect(call.arguments!['handle'], settings.handle);
+      expect(call.arguments!['settingsStr'], '{"verify": true}');
+      expect(call.arguments!['format'], 'json');
+    });
+
+    test('setValue() records call with correct arguments', () async {
+      final settings = await C2paSettings.create();
+      await settings.setValue('verify.verify_trust', 'false');
+
+      final call = mockPlatform.methodCalls.last;
+      expect(call.method, 'settingsSetValue');
+      expect(call.arguments!['handle'], settings.handle);
+      expect(call.arguments!['path'], 'verify.verify_trust');
+      expect(call.arguments!['value'], 'false');
+    });
+
+    test('dispose() prevents further operations', () async {
+      final settings = await C2paSettings.create();
+      settings.dispose();
+
+      expect(() => settings.updateFromString('{}', 'json'), throwsStateError);
+      expect(() => settings.setValue('key', 'value'), throwsStateError);
+    });
+  });
+
+  group('C2paContext', () {
+    test('create() returns context with valid handle', () async {
+      final context = await C2paContext.create();
+      expect(context.handle, greaterThan(0));
+      expect(mockPlatform.methodCalls.last.method, 'createContext');
+    });
+
+    test(
+      'fromSettings() creates context from settings handle and records settingsHandle',
+      () async {
+        final settings = await C2paSettings.create();
+        final context = await C2paContext.fromSettings(settings);
+
+        expect(context.handle, greaterThan(0));
+        final call = mockPlatform.methodCalls.last;
+        expect(call.method, 'createContextFromSettings');
+        expect(call.arguments!['settingsHandle'], settings.handle);
+      },
+    );
+
+    test('dispose() prevents further operations', () async {
+      final context = await C2paContext.create();
+      context.dispose();
+
+      expect(
+        () async => await c2pa.readManifestFromFileWithContext(
+          '/path/to/image.jpg',
+          context,
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('fromSettings() on disposed settings throws StateError', () async {
+      final settings = await C2paSettings.create();
+      settings.dispose();
+
+      expect(
+        () async => await C2paContext.fromSettings(settings),
+        throwsStateError,
+      );
+    });
+  });
+
+  group('CertificateConfig', () {
+    test('toMap includes all fields when set', () {
+      const config = CertificateConfig(
+        commonName: 'Test CN',
+        organization: 'Test Org',
+        organizationalUnit: 'Test OU',
+        country: 'US',
+        state: 'CA',
+        locality: 'San Francisco',
+        email: 'test@example.com',
+        validityDays: 365,
+      );
+
+      final map = config.toMap();
+      expect(map['commonName'], 'Test CN');
+      expect(map['organization'], 'Test Org');
+      expect(map['organizationalUnit'], 'Test OU');
+      expect(map['country'], 'US');
+      expect(map['state'], 'CA');
+      expect(map['locality'], 'San Francisco');
+      expect(map['email'], 'test@example.com');
+      expect(map['validityDays'], 365);
+    });
+
+    test('toMap only includes required fields when optionals are null', () {
+      const config = CertificateConfig(commonName: 'Minimal CN');
+
+      final map = config.toMap();
+      expect(map['commonName'], 'Minimal CN');
+      expect(map.containsKey('organization'), false);
+      expect(map.containsKey('organizationalUnit'), false);
+      expect(map.containsKey('country'), false);
+      expect(map.containsKey('state'), false);
+      expect(map.containsKey('locality'), false);
+      expect(map.containsKey('email'), false);
+      expect(map.containsKey('validityDays'), false);
+    });
+  });
+
+  group('Enhanced Reader API', () {
+    test(
+      'readManifestFromFileWithContext calls readFileWithContext with correct args',
+      () async {
+        final context = await C2paContext.create();
+        final result = await c2pa.readManifestFromFileWithContext(
+          '/path/to/image.jpg',
+          context,
+          options: const ReaderOptions(detailed: true, dataDir: '/tmp/data'),
+        );
+
+        expect(result, isNotNull);
+        expect(result!.activeManifest, isNotNull);
+
+        final call = mockPlatform.methodCalls.last;
+        expect(call.method, 'readFileWithContext');
+        expect(call.arguments!['path'], '/path/to/image.jpg');
+        expect(call.arguments!['contextHandle'], context.handle);
+        expect(call.arguments!['detailed'], true);
+        expect(call.arguments!['dataDir'], '/tmp/data');
+      },
+    );
+
+    test(
+      'readManifestFromFileWithContext on disposed context throws StateError',
+      () async {
+        final context = await C2paContext.create();
+        context.dispose();
+
+        expect(
+          () async => await c2pa.readManifestFromFileWithContext(
+            '/path/to/image.jpg',
+            context,
+          ),
+          throwsStateError,
+        );
+      },
+    );
+  });
+
+  group('Enhanced Builder API', () {
+    test('createBuilderFromContext creates builder via platform', () async {
+      final context = await C2paContext.create();
+      final builder = await c2pa.createBuilderFromContext(
+        context,
+        '{"title": "Test"}',
+      );
+
+      expect(builder, isNotNull);
+      expect(builder.handle, greaterThan(0));
+
+      final call = mockPlatform.methodCalls.last;
+      expect(call.method, 'createBuilderWithContext');
+      expect(call.arguments!['contextHandle'], context.handle);
+      expect(call.arguments!['manifestJson'], '{"title": "Test"}');
+    });
+
+    test('createBuilderWithSettings creates builder via platform', () async {
+      final settings = await C2paSettings.create();
+      final builder = await c2pa.createBuilderWithSettings(
+        '{"title": "Settings Test"}',
+        settings,
+      );
+
+      expect(builder, isNotNull);
+      expect(builder.handle, greaterThan(0));
+
+      final call = mockPlatform.methodCalls.last;
+      expect(call.method, 'createBuilderWithSettings');
+      expect(call.arguments!['manifestJson'], '{"title": "Settings Test"}');
+      expect(call.arguments!['settingsHandle'], settings.handle);
+    });
+
+    test(
+      'createBuilderWithSettings on disposed settings throws StateError',
+      () async {
+        final settings = await C2paSettings.create();
+        settings.dispose();
+
+        expect(
+          () async => await c2pa.createBuilderWithSettings(
+            '{"title": "Test"}',
+            settings,
+          ),
+          throwsStateError,
+        );
+      },
+    );
+  });
+
+  group('Certificate Manager API', () {
+    test(
+      'createSelfSignedCertificateChain returns PEM certificate chain',
+      () async {
+        final chain = await c2pa.createSelfSignedCertificateChain(
+          keyAlias: 'test-key',
+        );
+
+        expect(chain, contains('-----BEGIN CERTIFICATE-----'));
+        expect(chain, contains('-----END CERTIFICATE-----'));
+      },
+    );
+
+    test('createSelfSignedCertificateChain passes config correctly', () async {
+      const config = CertificateConfig(
+        commonName: 'Test App',
+        organization: 'Test Org',
+        country: 'US',
+        validityDays: 365,
+      );
+
+      final chain = await c2pa.createSelfSignedCertificateChain(
+        keyAlias: 'test-key',
+        config: config,
+      );
+
+      expect(chain, contains('-----BEGIN CERTIFICATE-----'));
+
+      final call = mockPlatform.methodCalls.last;
+      expect(call.method, 'createSelfSignedCertificateChain');
+      expect(call.arguments!['keyAlias'], 'test-key');
+      expect(call.arguments!['config'], isNotNull);
+      expect(call.arguments!['config']['commonName'], 'Test App');
+      expect(call.arguments!['config']['organization'], 'Test Org');
+      expect(call.arguments!['config']['country'], 'US');
+      expect(call.arguments!['config']['validityDays'], 365);
     });
   });
 }

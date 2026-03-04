@@ -1,3 +1,15 @@
+/* 
+This file is licensed to you under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(http://opensource.org/licenses/MIT), at your option.
+
+Unless required by applicable law or agreed to in writing, this software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS OF
+ANY KIND, either express or implied. See the LICENSE-MIT and LICENSE-APACHE
+files for the specific language governing permissions and limitations under
+each license.
+*/
+
 /// C2PA Flutter Plugin - Content Authenticity for Mobile Apps
 ///
 /// This library provides a Flutter interface to the C2PA (Coalition for Content
@@ -91,11 +103,15 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
+
 import 'c2pa_platform_interface.dart';
 import 'src/manifest_types.dart';
 
 // Export manifest types
 export 'src/manifest_types.dart';
+export 'src/manifest_validator.dart';
+export 'src/settings_validator.dart';
 
 // =============================================================================
 // Enums
@@ -127,10 +143,6 @@ enum ManifestIntent {
 enum ValidationStatus { valid, invalid, unknown }
 
 // =============================================================================
-// Core Data Classes
-// =============================================================================
-
-// =============================================================================
 // Signer Types
 // =============================================================================
 
@@ -143,6 +155,8 @@ enum ValidationStatus { valid, invalid, unknown }
 /// - [HardwareSigner] - Hardware-backed signing (StrongBox/Secure Enclave)
 /// - [RemoteSigner] - Remote web service signing
 sealed class C2paSigner {
+  const C2paSigner();
+
   /// The signing algorithm to use.
   SigningAlgorithm get algorithm;
 
@@ -174,6 +188,7 @@ sealed class C2paSigner {
 /// - ECDSA: [SigningAlgorithm.es256], [SigningAlgorithm.es384], [SigningAlgorithm.es512]
 /// - RSA-PSS: [SigningAlgorithm.ps256], [SigningAlgorithm.ps384], [SigningAlgorithm.ps512]
 /// - EdDSA: [SigningAlgorithm.ed25519]
+@immutable
 class PemSigner extends C2paSigner {
   @override
   final SigningAlgorithm algorithm;
@@ -187,7 +202,7 @@ class PemSigner extends C2paSigner {
   @override
   final String? tsaUrl;
 
-  PemSigner({
+  const PemSigner({
     required this.algorithm,
     required this.certificatePem,
     required this.privateKeyPem,
@@ -196,13 +211,14 @@ class PemSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'pem',
       'algorithm': algorithm.name,
       'certificatePem': certificatePem,
       'privateKeyPem': privateKeyPem,
-      'tsaUrl': tsaUrl,
     };
+    if (tsaUrl != null) map['tsaUrl'] = tsaUrl;
+    return map;
   }
 
   factory PemSigner.fromMap(Map<String, dynamic> map) {
@@ -235,6 +251,7 @@ class PemSigner extends C2paSigner {
 ///   },
 /// );
 /// ```
+@immutable
 class CallbackSigner extends C2paSigner {
   @override
   final SigningAlgorithm algorithm;
@@ -249,7 +266,7 @@ class CallbackSigner extends C2paSigner {
   @override
   final String? tsaUrl;
 
-  CallbackSigner({
+  const CallbackSigner({
     required this.algorithm,
     required this.certificateChainPem,
     required this.signCallback,
@@ -258,12 +275,13 @@ class CallbackSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'callback',
       'algorithm': algorithm.name,
       'certificateChainPem': certificateChainPem,
-      'tsaUrl': tsaUrl,
     };
+    if (tsaUrl != null) map['tsaUrl'] = tsaUrl;
+    return map;
   }
 }
 
@@ -274,7 +292,7 @@ class CallbackSigner extends C2paSigner {
 /// - iOS: iOS Keychain
 ///
 /// The key must already exist in the keystore/keychain before creating
-/// the signer. Use [C2pa.createKeystoreKey] to generate a new key.
+/// the signer. Use [C2pa.createKey] to generate a new key.
 ///
 /// ## Example
 ///
@@ -291,6 +309,7 @@ class CallbackSigner extends C2paSigner {
 ///
 /// - Ed25519 is not supported on either platform for keystore signing
 /// - On Android with [requireUserAuthentication], a biometric prompt is shown
+@immutable
 class KeystoreSigner extends C2paSigner {
   @override
   final SigningAlgorithm algorithm;
@@ -308,7 +327,7 @@ class KeystoreSigner extends C2paSigner {
   @override
   final String? tsaUrl;
 
-  KeystoreSigner({
+  const KeystoreSigner({
     required this.algorithm,
     required this.certificateChainPem,
     required this.keyAlias,
@@ -318,14 +337,15 @@ class KeystoreSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'keystore',
       'algorithm': algorithm.name,
       'certificateChainPem': certificateChainPem,
       'keyAlias': keyAlias,
       'requireUserAuthentication': requireUserAuthentication,
-      'tsaUrl': tsaUrl,
     };
+    if (tsaUrl != null) map['tsaUrl'] = tsaUrl;
+    return map;
   }
 }
 
@@ -352,6 +372,7 @@ class KeystoreSigner extends C2paSigner {
 ///   );
 /// }
 /// ```
+@immutable
 class HardwareSigner extends C2paSigner {
   /// Hardware signing only supports ES256.
   @override
@@ -370,7 +391,7 @@ class HardwareSigner extends C2paSigner {
   @override
   final String? tsaUrl;
 
-  HardwareSigner({
+  const HardwareSigner({
     required this.certificateChainPem,
     required this.keyAlias,
     this.requireUserAuthentication = false,
@@ -379,14 +400,15 @@ class HardwareSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'hardware',
       'algorithm': algorithm.name,
       'certificateChainPem': certificateChainPem,
       'keyAlias': keyAlias,
       'requireUserAuthentication': requireUserAuthentication,
-      'tsaUrl': tsaUrl,
     };
+    if (tsaUrl != null) map['tsaUrl'] = tsaUrl;
+    return map;
   }
 }
 
@@ -439,21 +461,63 @@ class RemoteSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'type': 'remote',
       'configurationUrl': configurationUrl,
-      'bearerToken': bearerToken,
-      'customHeaders': customHeaders,
     };
+    if (bearerToken != null) map['bearerToken'] = bearerToken;
+    if (customHeaders != null) map['customHeaders'] = customHeaders;
+    return map;
+  }
+}
+
+/// Settings-based signer for CAWG X.509 identity and other settings-configured signers.
+///
+/// Creates a signer from a JSON or TOML settings string that contains the
+/// signing configuration (algorithm, certificates, keys, etc.).
+///
+/// This is particularly useful for CAWG X.509 identity signers where the
+/// signing configuration is provided via settings.
+///
+/// ## Example
+///
+/// ```dart
+/// final signer = SettingsSigner(
+///   settingsString: '{"version": 1, "signer": {"local": {...}}}',
+///   format: 'json',
+/// );
+/// ```
+@immutable
+class SettingsSigner extends C2paSigner {
+  /// The settings string containing signer configuration.
+  final String settingsString;
+
+  /// The format of the settings string: 'json' or 'toml'.
+  final String format;
+
+  /// Algorithm is determined by the settings.
+  @override
+  SigningAlgorithm get algorithm => SigningAlgorithm.es256;
+
+  /// TSA URL is determined by the settings.
+  @override
+  String? get tsaUrl => null;
+
+  const SettingsSigner({required this.settingsString, this.format = 'json'});
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {'type': 'settings', 'settings': settingsString, 'format': format};
   }
 }
 
 /// Result of a signing operation
+@immutable
 class SignResult {
   final Uint8List signedData;
   final Uint8List? manifestBytes;
 
-  SignResult({required this.signedData, this.manifestBytes});
+  const SignResult({required this.signedData, this.manifestBytes});
 
   /// Size of the signed data in bytes
   int get signedDataSize => signedData.length;
@@ -467,6 +531,7 @@ class SignResult {
 // =============================================================================
 
 /// Options for reading manifests
+@immutable
 class ReaderOptions {
   /// Whether to return detailed JSON including validation info
   final bool detailed;
@@ -482,6 +547,7 @@ class ReaderOptions {
 }
 
 /// Signature information from a manifest
+@immutable
 class SignatureInfo {
   /// The issuer of the certificate
   final String? issuer;
@@ -498,7 +564,7 @@ class SignatureInfo {
   /// The certificate serial number
   final String? serialNumber;
 
-  SignatureInfo({
+  const SignatureInfo({
     this.issuer,
     this.signedAt,
     this.expiresAt,
@@ -507,28 +573,29 @@ class SignatureInfo {
   });
 
   factory SignatureInfo.fromMap(Map<String, dynamic> map) {
+    final timeStr = map['signed_at'] as String? ?? map['time'] as String?;
+    final algStr = map['algorithm'] as String? ?? map['alg'] as String?;
     return SignatureInfo(
       issuer: map['issuer'] as String?,
-      signedAt: map['signed_at'] != null
-          ? DateTime.tryParse(map['signed_at'] as String)
-          : null,
+      signedAt: timeStr != null ? DateTime.tryParse(timeStr) : null,
       expiresAt: map['expires_at'] != null
           ? DateTime.tryParse(map['expires_at'] as String)
           : null,
-      algorithm: map['algorithm'] != null
+      algorithm: algStr != null
           ? SigningAlgorithm.values.firstWhere(
-              (e) =>
-                  e.name.toLowerCase() ==
-                  (map['algorithm'] as String).toLowerCase(),
+              (e) => e.name.toLowerCase() == algStr.toLowerCase(),
               orElse: () => SigningAlgorithm.es256,
             )
           : null,
-      serialNumber: map['serial_number'] as String?,
+      serialNumber:
+          map['serial_number'] as String? ??
+          map['cert_serial_number'] as String?,
     );
   }
 }
 
 /// Validation error from manifest verification
+@immutable
 class ValidationError {
   /// Error code
   final String code;
@@ -539,7 +606,7 @@ class ValidationError {
   /// The manifest label this error relates to (if applicable)
   final String? manifestLabel;
 
-  ValidationError({
+  const ValidationError({
     required this.code,
     required this.message,
     this.manifestLabel,
@@ -548,8 +615,11 @@ class ValidationError {
   factory ValidationError.fromMap(Map<String, dynamic> map) {
     return ValidationError(
       code: map['code'] as String? ?? 'unknown',
-      message: map['message'] as String? ?? 'Unknown error',
-      manifestLabel: map['manifest_label'] as String?,
+      message:
+          map['message'] as String? ??
+          map['explanation'] as String? ??
+          'Unknown error',
+      manifestLabel: map['manifest_label'] as String? ?? map['url'] as String?,
     );
   }
 
@@ -558,6 +628,7 @@ class ValidationError {
 }
 
 /// Information about an assertion in a manifest
+@immutable
 class AssertionInfo {
   /// The assertion label (e.g., "c2pa.actions")
   final String label;
@@ -568,7 +639,7 @@ class AssertionInfo {
   /// Instance identifier if present
   final int? instance;
 
-  AssertionInfo({required this.label, required this.data, this.instance});
+  const AssertionInfo({required this.label, required this.data, this.instance});
 
   factory AssertionInfo.fromMap(Map<String, dynamic> map) {
     return AssertionInfo(
@@ -580,6 +651,7 @@ class AssertionInfo {
 }
 
 /// Information about an ingredient in a manifest
+@immutable
 class IngredientInfo {
   /// Title of the ingredient
   final String? title;
@@ -605,7 +677,7 @@ class IngredientInfo {
   /// Validation status of the ingredient
   final ValidationStatus validationStatus;
 
-  IngredientInfo({
+  const IngredientInfo({
     this.title,
     this.format,
     this.instanceId,
@@ -618,14 +690,9 @@ class IngredientInfo {
 
   factory IngredientInfo.fromMap(Map<String, dynamic> map) {
     final relationshipStr = map['relationship'] as String?;
-    Relationship relationship;
-    if (relationshipStr == 'parentOf') {
-      relationship = Relationship.parentOf;
-    } else if (relationshipStr == 'inputTo') {
-      relationship = Relationship.inputTo;
-    } else {
-      relationship = Relationship.componentOf;
-    }
+    final relationship = relationshipStr != null
+        ? Relationship.fromJson(relationshipStr)
+        : Relationship.componentOf;
 
     return IngredientInfo(
       title: map['title'] as String?,
@@ -658,6 +725,7 @@ class IngredientInfo {
 }
 
 /// Information about a single manifest
+@immutable
 class ManifestInfo {
   /// The manifest label (unique identifier)
   final String label;
@@ -686,7 +754,7 @@ class ManifestInfo {
   /// Thumbnail URI if present
   final String? thumbnailUri;
 
-  ManifestInfo({
+  const ManifestInfo({
     required this.label,
     this.title,
     this.format,
@@ -724,6 +792,7 @@ class ManifestInfo {
 }
 
 /// Complete manifest store with all manifests and validation info
+@immutable
 class ManifestStoreInfo {
   /// The active manifest label
   final String? activeManifest;
@@ -737,7 +806,7 @@ class ManifestStoreInfo {
   /// Overall validation status
   final ValidationStatus validationStatus;
 
-  ManifestStoreInfo({
+  const ManifestStoreInfo({
     this.activeManifest,
     this.manifests = const {},
     this.validationErrors = const [],
@@ -792,6 +861,7 @@ class ManifestStoreInfo {
 ///
 /// This differs from [ResourceRef] in manifest_types.dart which is used
 /// for references within the manifest JSON structure.
+@immutable
 class BuilderResource {
   /// URI identifier for the resource
   final String uri;
@@ -802,7 +872,7 @@ class BuilderResource {
   /// Optional MIME type
   final String? mimeType;
 
-  BuilderResource({required this.uri, required this.data, this.mimeType});
+  const BuilderResource({required this.uri, required this.data, this.mimeType});
 
   Map<String, dynamic> toMap() {
     return {'uri': uri, 'data': data, 'mimeType': mimeType};
@@ -810,6 +880,7 @@ class BuilderResource {
 }
 
 /// Configuration for adding an ingredient to a builder
+@immutable
 class IngredientConfig {
   /// Title of the ingredient
   final String? title;
@@ -823,7 +894,7 @@ class IngredientConfig {
   /// Additional JSON data for the ingredient
   final Map<String, dynamic>? additionalData;
 
-  IngredientConfig({
+  const IngredientConfig({
     this.title,
     this.relationship = Relationship.componentOf,
     this.thumbnail,
@@ -841,6 +912,7 @@ class IngredientConfig {
 }
 
 /// Configuration for adding an action to a builder
+@immutable
 class ActionConfig {
   /// The action identifier (e.g., "c2pa.created", "c2pa.edited")
   final String action;
@@ -857,7 +929,7 @@ class ActionConfig {
   /// Additional parameters
   final Map<String, dynamic>? parameters;
 
-  ActionConfig({
+  const ActionConfig({
     required this.action,
     this.when,
     this.softwareAgent,
@@ -880,6 +952,7 @@ class ActionConfig {
 }
 
 /// Options for building manifests
+@immutable
 class BuilderOptions {
   /// The intent for this manifest
   final ManifestIntent? intent;
@@ -901,16 +974,17 @@ class BuilderOptions {
   });
 
   Map<String, dynamic> toMap() {
-    return {
-      'intent': intent?.name,
-      'digitalSourceType': digitalSourceType?.url,
-      'embed': embed,
-      'remoteUrl': remoteUrl,
-    };
+    final map = <String, dynamic>{'embed': embed};
+    if (intent != null) map['intent'] = intent!.name;
+    if (digitalSourceType != null)
+      map['digitalSourceType'] = digitalSourceType!.url;
+    if (remoteUrl != null) map['remoteUrl'] = remoteUrl;
+    return map;
   }
 }
 
 /// Result from builder sign operations
+@immutable
 class BuilderSignResult {
   /// The signed asset data
   final Uint8List signedData;
@@ -921,7 +995,7 @@ class BuilderSignResult {
   /// Size of the C2PA manifest data
   final int manifestSize;
 
-  BuilderSignResult({
+  const BuilderSignResult({
     required this.signedData,
     this.manifestBytes,
     required this.manifestSize,
@@ -929,11 +1003,12 @@ class BuilderSignResult {
 }
 
 /// Archive data from a builder (for serialization)
+@immutable
 class BuilderArchive {
   /// The archive data
   final Uint8List data;
 
-  BuilderArchive({required this.data});
+  const BuilderArchive({required this.data});
 }
 
 // =============================================================================
@@ -1041,6 +1116,186 @@ abstract class ManifestBuilder {
 }
 
 // =============================================================================
+// C2PASettings - Handle-based settings object
+// =============================================================================
+
+/// Handle-based C2PA settings for configuring readers, builders, and signers.
+///
+/// Use [C2paSettings.create] to create a new settings instance, then
+/// configure it with [updateFromString] or [setValue].
+///
+/// ## Example
+///
+/// ```dart
+/// final settings = await C2paSettings.create();
+/// await settings.updateFromString('{"version": 1, "verify": {"verify_trust": false}}', 'json');
+/// await settings.setValue('verify.verify_after_sign', 'true');
+///
+/// // Use with context or builder
+/// final context = await C2paContext.fromSettings(settings);
+///
+/// // Always dispose when done
+/// settings.dispose();
+/// ```
+class C2paSettings {
+  final int _handle;
+  bool _disposed = false;
+
+  C2paSettings._(this._handle);
+
+  /// The native handle for this settings object (for internal use).
+  int get handle => _handle;
+
+  /// Create a new empty settings instance with defaults.
+  static Future<C2paSettings> create() async {
+    final handle = await C2paPlatform.instance.createSettings();
+    return C2paSettings._(handle);
+  }
+
+  /// Update settings from a JSON or TOML string.
+  ///
+  /// The [format] should be 'json' or 'toml'.
+  Future<void> updateFromString(String settings, String format) {
+    _checkDisposed();
+    return C2paPlatform.instance.settingsUpdateFromString(
+      _handle,
+      settings,
+      format,
+    );
+  }
+
+  /// Set an individual setting value using dot notation.
+  ///
+  /// Example: `await settings.setValue('verify.verify_trust', 'false');`
+  Future<void> setValue(String path, String value) {
+    _checkDisposed();
+    return C2paPlatform.instance.settingsSetValue(_handle, path, value);
+  }
+
+  void _checkDisposed() {
+    if (_disposed) {
+      throw StateError('C2paSettings has been disposed');
+    }
+  }
+
+  /// Dispose of native resources.
+  void dispose() {
+    if (!_disposed) {
+      _disposed = true;
+      C2paPlatform.instance.settingsDispose(_handle);
+    }
+  }
+}
+
+// =============================================================================
+// C2PAContext - Handle-based shared configuration context
+// =============================================================================
+
+/// Shared configuration context for creating readers and builders.
+///
+/// A context encapsulates settings and can be shared across multiple
+/// Reader and Builder instances.
+///
+/// ## Example
+///
+/// ```dart
+/// // Default context
+/// final context = await C2paContext.create();
+///
+/// // Context with custom settings
+/// final settings = await C2paSettings.create();
+/// await settings.updateFromString(settingsJson, 'json');
+/// final context = await C2paContext.fromSettings(settings);
+///
+/// // Use with reader or builder
+/// final store = await c2pa.readManifestFromFileWithContext('/path', context);
+/// final builder = await c2pa.createBuilderFromContext(context, manifestJson);
+///
+/// // Always dispose when done
+/// context.dispose();
+/// ```
+class C2paContext {
+  final int _handle;
+  bool _disposed = false;
+
+  C2paContext._(this._handle);
+
+  /// The native handle for this context (for internal use).
+  int get handle => _handle;
+
+  /// Create a new context with default settings.
+  static Future<C2paContext> create() async {
+    final handle = await C2paPlatform.instance.createContext();
+    return C2paContext._(handle);
+  }
+
+  /// Create a context from custom settings.
+  static Future<C2paContext> fromSettings(C2paSettings settings) async {
+    settings._checkDisposed();
+    final handle = await C2paPlatform.instance.createContextFromSettings(
+      settings._handle,
+    );
+    return C2paContext._(handle);
+  }
+
+  void _checkDisposed() {
+    if (_disposed) {
+      throw StateError('C2paContext has been disposed');
+    }
+  }
+
+  /// Dispose of native resources.
+  void dispose() {
+    if (!_disposed) {
+      _disposed = true;
+      C2paPlatform.instance.contextDispose(_handle);
+    }
+  }
+}
+
+// =============================================================================
+// Certificate Config
+// =============================================================================
+
+/// Configuration for X.509 certificate generation
+@immutable
+class CertificateConfig {
+  final String commonName;
+  final String? organization;
+  final String? organizationalUnit;
+  final String? country;
+  final String? state;
+  final String? locality;
+  final String? email;
+  final int? validityDays;
+
+  const CertificateConfig({
+    required this.commonName,
+    this.organization,
+    this.organizationalUnit,
+    this.country,
+    this.state,
+    this.locality,
+    this.email,
+    this.validityDays,
+  });
+
+  Map<String, dynamic> toMap() {
+    final map = <String, dynamic>{'commonName': commonName};
+    if (organization != null) map['organization'] = organization;
+    if (organizationalUnit != null) {
+      map['organizationalUnit'] = organizationalUnit;
+    }
+    if (country != null) map['country'] = country;
+    if (state != null) map['state'] = state;
+    if (locality != null) map['locality'] = locality;
+    if (email != null) map['email'] = email;
+    if (validityDays != null) map['validityDays'] = validityDays;
+    return map;
+  }
+}
+
+// =============================================================================
 // C2PA Main Class
 // =============================================================================
 
@@ -1084,11 +1339,11 @@ abstract class ManifestBuilder {
 ///
 /// - [ManifestBuilder] for manifest creation
 /// - [ManifestStoreInfo] for reading manifest data
-/// - [SignerInfo] for signing configuration
+/// - [C2paSigner] for signing configuration
 class C2pa {
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Version and Platform Info
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Get the platform version (iOS/Android version)
   Future<String?> getPlatformVersion() {
@@ -1100,9 +1355,9 @@ class C2pa {
     return C2paPlatform.instance.getVersion();
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Reader API - Basic
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Read C2PA manifest from a file path
   ///
@@ -1118,9 +1373,9 @@ class C2pa {
     return C2paPlatform.instance.readBytes(data, mimeType);
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Reader API - Enhanced
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Read manifest from a file with detailed information
   ///
@@ -1183,9 +1438,9 @@ class C2pa {
     return C2paPlatform.instance.getSupportedSignMimeTypes();
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Signer API - Basic
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Sign image bytes with a C2PA manifest
   ///
@@ -1219,9 +1474,9 @@ class C2pa {
     );
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Builder API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Create a new manifest builder from a JSON manifest definition
   Future<ManifestBuilder> createBuilder(String manifestJson) {
@@ -1233,9 +1488,9 @@ class C2pa {
     return C2paPlatform.instance.createBuilderFromArchive(archiveData);
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Advanced Signing API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Create a hashed placeholder for later signing
   ///
@@ -1299,9 +1554,9 @@ class C2pa {
     return C2paPlatform.instance.getSignerReserveSize(signer);
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Key Management API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Check if hardware-backed signing is available on this device.
   ///
@@ -1421,14 +1676,94 @@ class C2pa {
     );
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // Settings API
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   /// Load C2PA settings from a configuration string
   ///
   /// The [format] should be "json" or "toml".
   Future<void> loadSettings(String settings, {String format = 'json'}) {
     return C2paPlatform.instance.loadSettings(settings, format);
+  }
+
+  // ===========================================================================
+  // Enhanced Reader API
+  // ===========================================================================
+
+  /// Read manifest from a file using a shared [C2paContext].
+  ///
+  /// This allows reading with custom settings configured via
+  /// [C2paSettings] and [C2paContext].
+  Future<ManifestStoreInfo?> readManifestFromFileWithContext(
+    String path,
+    C2paContext context, {
+    ReaderOptions options = const ReaderOptions(),
+  }) async {
+    context._checkDisposed();
+    final json = await C2paPlatform.instance.readFileWithContext(
+      path,
+      context._handle,
+      options.detailed,
+      options.dataDir,
+    );
+    if (json == null) return null;
+    return ManifestStoreInfo.fromJson(json);
+  }
+
+  // ===========================================================================
+  // Enhanced Builder API
+  // ===========================================================================
+
+  /// Create a builder from a shared [C2paContext].
+  ///
+  /// The context provides shared configuration for the builder.
+  Future<ManifestBuilder> createBuilderFromContext(
+    C2paContext context,
+    String manifestJson,
+  ) {
+    context._checkDisposed();
+    return C2paPlatform.instance.createBuilderWithContext(
+      context._handle,
+      manifestJson,
+    );
+  }
+
+  /// Create a builder with custom [C2paSettings] and auto-validation.
+  ///
+  /// The settings provide configuration for the builder, and the manifest
+  /// JSON is automatically validated against the C2PA spec.
+  Future<ManifestBuilder> createBuilderWithSettings(
+    String manifestJson,
+    C2paSettings settings,
+  ) {
+    settings._checkDisposed();
+    return C2paPlatform.instance.createBuilderWithSettings(
+      manifestJson,
+      settings._handle,
+    );
+  }
+
+  // ===========================================================================
+  // Certificate Manager API
+  // ===========================================================================
+
+  /// Create a self-signed certificate chain for testing.
+  ///
+  /// Generates a 3-tier certificate chain (root CA, intermediate, end-entity)
+  /// bound to the key identified by [keyAlias].
+  ///
+  /// Returns the PEM-encoded certificate chain.
+  ///
+  /// Note: On iOS, this uses the CertificateManager from c2pa-ios.
+  /// On Android, availability depends on the native library.
+  Future<String> createSelfSignedCertificateChain({
+    required String keyAlias,
+    CertificateConfig? config,
+  }) {
+    return C2paPlatform.instance.createSelfSignedCertificateChain(
+      keyAlias: keyAlias,
+      config: config?.toMap(),
+    );
   }
 }

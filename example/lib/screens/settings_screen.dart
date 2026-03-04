@@ -1,8 +1,21 @@
+/* 
+This file is licensed to you under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(http://opensource.org/licenses/MIT), at your option.
+
+Unless required by applicable law or agreed to in writing, this software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS OF
+ANY KIND, either express or implied. See the LICENSE-MIT and LICENSE-APACHE
+files for the specific language governing permissions and limitations under
+each license.
+*/
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:c2pa_flutter/c2pa.dart';
 import '../services/c2pa_manager.dart';
 
+/// Settings screen for configuring C2PA signing mode and credentials.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -24,22 +37,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Hardware controllers
   final _hardwareAliasController = TextEditingController();
   final _hardwareCertController = TextEditingController();
-  final _hardwareServerUrlController = TextEditingController(
-    text: 'https://zbjspd6jfv.us-east-2.awsapprunner.com',
-  );
-  final _hardwareBearerTokenController = TextEditingController(
-    text: '2d0c8b6b66c47c3b215976cc808296269322558c6d533d9ce6f3c45a9ccfe811',
-  );
+  final _hardwareServerUrlController = TextEditingController();
+  final _hardwareBearerTokenController = TextEditingController();
 
   bool _isEnrolling = false;
 
   // Remote controllers
-  final _remoteUrlController = TextEditingController(
-    text: 'https://zbjspd6jfv.us-east-2.awsapprunner.com/api/v1/c2pa/configuration',
-  );
-  final _bearerTokenController = TextEditingController(
-    text: '2d0c8b6b66c47c3b215976cc808296269322558c6d533d9ce6f3c45a9ccfe811',
-  );
+  final _remoteUrlController = TextEditingController();
+  final _bearerTokenController = TextEditingController();
+
+  // Settings signer controllers
+  final _settingsJsonController = TextEditingController();
+  String _settingsFormat = 'json';
 
   bool _isCheckingHardware = false;
   bool? _hardwareAvailable;
@@ -65,6 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _hardwareBearerTokenController.dispose();
     _remoteUrlController.dispose();
     _bearerTokenController.dispose();
+    _settingsJsonController.dispose();
     super.dispose();
   }
 
@@ -86,6 +96,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_manager.bearerToken != null && _manager.bearerToken!.isNotEmpty) {
       _bearerTokenController.text = _manager.bearerToken!;
     }
+    if (_manager.settingsSignerJson != null) {
+      _settingsJsonController.text = _manager.settingsSignerJson!;
+    }
+    _settingsFormat = _manager.settingsSignerFormat;
   }
 
   Future<void> _checkHardwareAvailability() async {
@@ -112,12 +126,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final cert = await rootBundle.loadString('assets/test_certs/test_es256_cert.pem');
       final key = await rootBundle.loadString('assets/test_certs/test_es256_key.pem');
+      if (!mounted) return;
       setState(() {
         _certController.text = cert;
         _keyController.text = key;
       });
       _showSnackBar('Test certificates loaded');
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Failed to load test certificates: $e');
     }
   }
@@ -139,12 +155,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         certificateChainPem: cert,
       );
 
+      if (!mounted) return;
       setState(() {
         _keystoreAliasController.text = keyAlias;
         _keystoreCertController.text = cert;
       });
       _showSnackBar('Test key imported to keystore');
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Failed to import key: $e');
     }
   }
@@ -177,6 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       final certChain = result['certificateChain'] as String;
 
+      if (!mounted) return;
       setState(() {
         _hardwareAliasController.text = keyAlias;
         _hardwareCertController.text = certChain;
@@ -190,9 +209,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       _showSnackBar('Hardware key enrolled successfully');
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Enrollment failed: $e');
     } finally {
-      setState(() => _isEnrolling = false);
+      if (mounted) {
+        setState(() => _isEnrolling = false);
+      }
     }
   }
 
@@ -266,6 +288,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return Icons.security;
       case SigningMode.remote:
         return Icons.cloud;
+      case SigningMode.settingsSigner:
+        return Icons.tune;
     }
   }
 
@@ -468,6 +492,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return _buildHardwareConfig();
       case SigningMode.remote:
         return _buildRemoteConfig();
+      case SigningMode.settingsSigner:
+        return _buildSettingsSignerConfig();
     }
   }
 
@@ -938,6 +964,173 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  void _saveSettingsSignerConfig() {
+    if (_settingsJsonController.text.isNotEmpty) {
+      _manager.setSettingsSignerConfig(
+        settingsJson: _settingsJsonController.text,
+        format: _settingsFormat,
+      );
+      _showSnackBar('Settings signer configuration saved');
+    } else {
+      _showSnackBar('Please provide settings JSON/TOML');
+    }
+  }
+
+  void _validateSettingsInput() {
+    final text = _settingsJsonController.text.trim();
+    if (text.isEmpty) {
+      _showSnackBar('Please enter settings to validate');
+      return;
+    }
+
+    if (_settingsFormat != 'json') {
+      _showSnackBar('Validation is only supported for JSON format');
+      return;
+    }
+
+    final result = SettingsValidator.validate(text);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              result.isValid ? Icons.check_circle : Icons.error,
+              color: result.isValid ? Colors.green : Colors.red,
+            ),
+            const SizedBox(width: 8),
+            Text(result.isValid ? 'Valid Settings' : 'Validation Issues'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (result.hasErrors) ...[
+                const Text('Errors:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                const SizedBox(height: 4),
+                ...result.errors.map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('- $e', style: const TextStyle(fontSize: 13)),
+                )),
+              ],
+              if (result.hasErrors && result.hasWarnings) const SizedBox(height: 12),
+              if (result.hasWarnings) ...[
+                const Text('Warnings:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                const SizedBox(height: 4),
+                ...result.warnings.map((w) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('- $w', style: const TextStyle(fontSize: 13)),
+                )),
+              ],
+              if (!result.hasErrors && !result.hasWarnings)
+                const Text('Settings are valid with no warnings.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsSignerConfig() {
+    return _buildConfigSection(
+      title: 'Settings Signer Configuration',
+      icon: Icons.tune,
+      children: [
+        const Text(
+          'Provide a complete C2PA settings JSON or TOML string that includes '
+          'signer configuration. The signer section must specify either a local '
+          'or remote signer with algorithm, certificate, and key.',
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            const Text('Format: '),
+            const SizedBox(width: 8),
+            ChoiceChip(
+              label: const Text('JSON'),
+              selected: _settingsFormat == 'json',
+              onSelected: (selected) {
+                if (selected) setState(() => _settingsFormat = 'json');
+              },
+            ),
+            const SizedBox(width: 8),
+            ChoiceChip(
+              label: const Text('TOML'),
+              selected: _settingsFormat == 'toml',
+              onSelected: (selected) {
+                if (selected) setState(() => _settingsFormat = 'toml');
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _settingsJsonController,
+          decoration: InputDecoration(
+            labelText: 'Settings (${_settingsFormat.toUpperCase()})',
+            hintText: _settingsFormat == 'json'
+                ? '{"version": 1, "signer": {"local": {...}}}'
+                : '[signer.local]\nalg = "es256"\n...',
+            border: const OutlineInputBorder(),
+          ),
+          maxLines: 10,
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _validateSettingsInput,
+                icon: const Icon(Icons.check),
+                label: const Text('Validate'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _saveSettingsSignerConfig,
+                icon: const Icon(Icons.save),
+                label: const Text('Save'),
+              ),
+            ),
+          ],
+        ),
+        if (_manager.hasSettingsSignerConfig) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green.shade600, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                'Settings signer configured (${_manager.settingsSignerFormat.toUpperCase()})',
+                style: TextStyle(color: Colors.green.shade600, fontSize: 12),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () {
+                  _manager.clearSettingsSignerConfig();
+                  _settingsJsonController.clear();
+                  _showSnackBar('Settings signer configuration cleared');
+                },
+                icon: const Icon(Icons.delete_outline, size: 18),
+                tooltip: 'Clear configuration',
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

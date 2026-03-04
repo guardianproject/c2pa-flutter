@@ -1,3 +1,15 @@
+/* 
+This file is licensed to you under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(http://opensource.org/licenses/MIT), at your option.
+
+Unless required by applicable law or agreed to in writing, this software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS OF
+ANY KIND, either express or implied. See the LICENSE-MIT and LICENSE-APACHE
+files for the specific language governing permissions and limitations under
+each license.
+*/
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -59,9 +71,9 @@ class MethodChannelC2pa extends C2paPlatform {
     return map;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Version and Platform Info
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<String?> getPlatformVersion() async {
@@ -77,9 +89,9 @@ class MethodChannelC2pa extends C2paPlatform {
     return version;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Reader API - Basic
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<String?> readFile(String path) async {
@@ -98,9 +110,9 @@ class MethodChannelC2pa extends C2paPlatform {
     return result;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Reader API - Enhanced
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<String?> readFileDetailed(
@@ -166,9 +178,9 @@ class MethodChannelC2pa extends C2paPlatform {
     return result?.cast<String>() ?? [];
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Signer API - Basic
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<SignResult> signBytes({
@@ -236,9 +248,9 @@ class MethodChannelC2pa extends C2paPlatform {
     }
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Builder API
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<ManifestBuilder> createBuilder(String manifestJson) async {
@@ -430,9 +442,9 @@ class MethodChannelC2pa extends C2paPlatform {
     });
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Advanced Signing API
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<Uint8List> createHashedPlaceholder({
@@ -535,9 +547,9 @@ class MethodChannelC2pa extends C2paPlatform {
     return result;
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Key Management API
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<bool> isHardwareSigningAvailable() async {
@@ -661,9 +673,9 @@ class MethodChannelC2pa extends C2paPlatform {
     return Map<String, dynamic>.from(result);
   }
 
-  // ===========================================================================
+  // =============================================================================
   // Settings API
-  // ===========================================================================
+  // =============================================================================
 
   @override
   Future<void> loadSettings(String settings, String format) async {
@@ -671,6 +683,172 @@ class MethodChannelC2pa extends C2paPlatform {
       'settings': settings,
       'format': format,
     });
+  }
+
+  // =============================================================================
+  // C2PASettings Handle API
+  // =============================================================================
+
+  @override
+  Future<int> createSettings() async {
+    final handle = await methodChannel.invokeMethod<int>('createSettings');
+    if (handle == null) {
+      throw PlatformException(
+        code: 'ERROR',
+        message: 'Failed to create settings',
+      );
+    }
+    return handle;
+  }
+
+  @override
+  Future<void> settingsUpdateFromString(
+    int handle,
+    String settingsStr,
+    String format,
+  ) async {
+    await methodChannel.invokeMethod<void>('settingsUpdateFromString', {
+      'handle': handle,
+      'settings': settingsStr,
+      'format': format,
+    });
+  }
+
+  @override
+  Future<void> settingsSetValue(int handle, String path, String value) async {
+    await methodChannel.invokeMethod<void>('settingsSetValue', {
+      'handle': handle,
+      'path': path,
+      'value': value,
+    });
+  }
+
+  @override
+  Future<void> settingsDispose(int handle) async {
+    await methodChannel.invokeMethod<void>('settingsDispose', {
+      'handle': handle,
+    });
+  }
+
+  // =============================================================================
+  // C2PAContext Handle API
+  // =============================================================================
+
+  @override
+  Future<int> createContext() async {
+    final handle = await methodChannel.invokeMethod<int>('createContext');
+    if (handle == null) {
+      throw PlatformException(
+        code: 'ERROR',
+        message: 'Failed to create context',
+      );
+    }
+    return handle;
+  }
+
+  @override
+  Future<int> createContextFromSettings(int settingsHandle) async {
+    final handle = await methodChannel.invokeMethod<int>(
+      'createContextFromSettings',
+      {'settingsHandle': settingsHandle},
+    );
+    if (handle == null) {
+      throw PlatformException(
+        code: 'ERROR',
+        message: 'Failed to create context from settings',
+      );
+    }
+    return handle;
+  }
+
+  @override
+  Future<void> contextDispose(int handle) async {
+    await methodChannel.invokeMethod<void>('contextDispose', {
+      'handle': handle,
+    });
+  }
+
+  // =============================================================================
+  // Enhanced Reader API
+  // =============================================================================
+
+  @override
+  Future<String?> readFileWithContext(
+    String path,
+    int contextHandle,
+    bool detailed,
+    String? dataDir,
+  ) async {
+    final result = await methodChannel
+        .invokeMethod<String>('readFileWithContext', {
+          'path': path,
+          'contextHandle': contextHandle,
+          'detailed': detailed,
+          'dataDir': dataDir,
+        });
+    return result;
+  }
+
+  // =============================================================================
+  // Enhanced Builder API
+  // =============================================================================
+
+  @override
+  Future<ManifestBuilder> createBuilderWithContext(
+    int contextHandle,
+    String manifestJson,
+  ) async {
+    final handle = await methodChannel.invokeMethod<int>(
+      'createBuilderWithContext',
+      {'contextHandle': contextHandle, 'manifestJson': manifestJson},
+    );
+    if (handle == null) {
+      throw PlatformException(
+        code: 'ERROR',
+        message: 'Failed to create builder with context',
+      );
+    }
+    return MethodChannelManifestBuilder(this, handle);
+  }
+
+  @override
+  Future<ManifestBuilder> createBuilderWithSettings(
+    String manifestJson,
+    int settingsHandle,
+  ) async {
+    final handle = await methodChannel.invokeMethod<int>(
+      'createBuilderWithSettings',
+      {'manifestJson': manifestJson, 'settingsHandle': settingsHandle},
+    );
+    if (handle == null) {
+      throw PlatformException(
+        code: 'ERROR',
+        message: 'Failed to create builder with settings',
+      );
+    }
+    return MethodChannelManifestBuilder(this, handle);
+  }
+
+  // =============================================================================
+  // Certificate Manager API
+  // =============================================================================
+
+  @override
+  Future<String> createSelfSignedCertificateChain({
+    required String keyAlias,
+    Map<String, dynamic>? config,
+  }) async {
+    final result = await methodChannel.invokeMethod<String>(
+      'createSelfSignedCertificateChain',
+      {'keyAlias': keyAlias, 'config': config},
+    );
+    if (result == null) {
+      throw PlatformException(
+        code: 'ERROR',
+        message: 'Failed to create self-signed certificate chain',
+      );
+    }
+    return result;
   }
 }
 

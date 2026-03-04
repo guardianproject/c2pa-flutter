@@ -1,3 +1,15 @@
+/* 
+This file is licensed to you under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(http://opensource.org/licenses/MIT), at your option.
+
+Unless required by applicable law or agreed to in writing, this software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS OF
+ANY KIND, either express or implied. See the LICENSE-MIT and LICENSE-APACHE
+files for the specific language governing permissions and limitations under
+each license.
+*/
+
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -8,6 +20,7 @@ import 'settings_screen.dart';
 import 'verify_screen.dart';
 import 'camera_screen.dart';
 
+/// Main screen with camera and gallery buttons for capturing and signing images.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -33,7 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onManagerUpdate() {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _showSuccessOverlay(String message) {
@@ -56,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(builder: (context) => const CameraScreen()),
     );
 
-    if (result != null) {
+    if (result != null && mounted) {
       await _signAndSaveImage(result);
     }
   }
@@ -64,8 +79,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
-    
-    if (image != null) {
+
+    if (image != null && mounted) {
       final bytes = await image.readAsBytes();
       await _signAndSaveImage(bytes);
     }

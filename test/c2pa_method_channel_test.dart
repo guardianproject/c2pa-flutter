@@ -1,3 +1,15 @@
+/* 
+This file is licensed to you under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(http://opensource.org/licenses/MIT), at your option.
+
+Unless required by applicable law or agreed to in writing, this software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS OF
+ANY KIND, either express or implied. See the LICENSE-MIT and LICENSE-APACHE
+files for the specific language governing permissions and limitations under
+each license.
+*/
+
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -8,7 +20,7 @@ import 'package:c2pa_flutter/c2pa_method_channel.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  MethodChannelC2pa platform = MethodChannelC2pa();
+  final MethodChannelC2pa platform = MethodChannelC2pa();
   const MethodChannel channel = MethodChannel('org.guardianproject.c2pa');
 
   setUp(() {
@@ -77,7 +89,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -101,13 +113,16 @@ void main() {
       final builder = await platform.createBuilder('{}');
 
       builder.addAction(
-        ActionConfig(action: 'c2pa.created', softwareAgent: 'TestApp/1.0'),
+        const ActionConfig(
+          action: 'c2pa.created',
+          softwareAgent: 'TestApp/1.0',
+        ),
       );
 
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -136,7 +151,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -159,7 +174,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -183,12 +198,12 @@ void main() {
 
       builder.setIntent(ManifestIntent.create);
       builder.setNoEmbed();
-      builder.addAction(ActionConfig(action: 'c2pa.created'));
+      builder.addAction(const ActionConfig(action: 'c2pa.created'));
 
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -227,7 +242,7 @@ void main() {
       expect(() => builder.setNoEmbed(), throwsStateError);
       expect(() => builder.setRemoteUrl('url'), throwsStateError);
       expect(
-        () => builder.addAction(ActionConfig(action: 'test')),
+        () => builder.addAction(const ActionConfig(action: 'test')),
         throwsStateError,
       );
     });
@@ -266,7 +281,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',
@@ -280,7 +295,7 @@ void main() {
       await builder.sign(
         sourceData: Uint8List.fromList([1, 2, 3]),
         mimeType: 'image/jpeg',
-        signer: PemSigner(
+        signer: const PemSigner(
           algorithm: SigningAlgorithm.es256,
           certificatePem: 'test-cert',
           privateKeyPem: 'test-key',

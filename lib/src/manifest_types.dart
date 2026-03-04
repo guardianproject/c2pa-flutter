@@ -1,3 +1,15 @@
+/* 
+This file is licensed to you under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(http://opensource.org/licenses/MIT), at your option.
+
+Unless required by applicable law or agreed to in writing, this software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS OF
+ANY KIND, either express or implied. See the LICENSE-MIT and LICENSE-APACHE
+files for the specific language governing permissions and limitations under
+each license.
+*/
+
 /// Type-safe manifest building types for C2PA Flutter
 ///
 /// This file contains all the Dart types needed to construct C2PA manifests
@@ -6,6 +18,8 @@ library;
 
 import 'dart:convert';
 import 'dart:typed_data';
+
+import 'package:meta/meta.dart';
 
 // =============================================================================
 // Enums
@@ -45,6 +59,14 @@ enum PredefinedAction {
 
   const PredefinedAction(this.value);
   final String value;
+
+  static PredefinedAction? fromValue(String? value) {
+    if (value == null) return null;
+    return PredefinedAction.values.cast<PredefinedAction?>().firstWhere(
+      (e) => e?.value == value,
+      orElse: () => null,
+    );
+  }
 }
 
 /// Relationship type for ingredients
@@ -74,6 +96,8 @@ enum Role {
 
   const Role(this.value);
   final String value;
+
+  String toJson() => value;
 
   static Role? fromJson(String? value) {
     if (value == null) return null;
@@ -173,6 +197,14 @@ enum ImageRegionType {
 
   const ImageRegionType(this.url);
   final String url;
+
+  static ImageRegionType? fromUrl(String? url) {
+    if (url == null) return null;
+    return ImageRegionType.values.cast<ImageRegionType?>().firstWhere(
+      (e) => e?.url == url,
+      orElse: () => null,
+    );
+  }
 }
 
 /// Standard assertion labels
@@ -181,7 +213,9 @@ enum StandardAssertionLabel {
   creativeWork('stds.schema-org.CreativeWork'),
   exif('stds.exif'),
   iptcPhotoMetadata('stds.iptc.photo-metadata'),
-  trainingMining('c2pa.training-mining');
+  trainingMining('c2pa.training-mining'),
+  cawgIdentity('cawg.identity'),
+  cawgTrainingMining('cawg.ai_training_and_data_mining');
 
   const StandardAssertionLabel(this.value);
   final String value;
@@ -254,6 +288,8 @@ enum TrainingMiningPermission {
   const TrainingMiningPermission(this.value);
   final String value;
 
+  String toJson() => value;
+
   static TrainingMiningPermission fromJson(String value) {
     return TrainingMiningPermission.values.firstWhere(
       (e) => e.value == value,
@@ -267,6 +303,7 @@ enum TrainingMiningPermission {
 // =============================================================================
 
 /// 2D coordinate
+@immutable
 class Coordinate {
   final double x;
   final double y;
@@ -295,6 +332,7 @@ class Coordinate {
 }
 
 /// Spatial shape definition
+@immutable
 class Shape {
   final ShapeType type;
   final Coordinate? origin;
@@ -398,6 +436,7 @@ class Shape {
 }
 
 /// Frame range for video content
+@immutable
 class Frame {
   final int start;
   final int? end;
@@ -416,6 +455,7 @@ class Frame {
 }
 
 /// Time range for temporal regions
+@immutable
 class Time {
   final TimeType type;
   final String start;
@@ -439,6 +479,7 @@ class Time {
 }
 
 /// Text selector for textual regions
+@immutable
 class TextSelector {
   final String fragment;
   final int? start;
@@ -463,7 +504,10 @@ class TextSelector {
 }
 
 /// Range definition for regions of interest
+@immutable
 sealed class RegionRange {
+  const RegionRange();
+
   Map<String, dynamic> toJson();
 
   static RegionRange fromJson(Map<String, dynamic> json) {
@@ -483,10 +527,11 @@ sealed class RegionRange {
 }
 
 /// Spatial region range
+@immutable
 class SpatialRange extends RegionRange {
   final Shape shape;
 
-  SpatialRange({required this.shape});
+  const SpatialRange({required this.shape});
 
   @override
   Map<String, dynamic> toJson() => {'shape': shape.toJson()};
@@ -499,10 +544,11 @@ class SpatialRange extends RegionRange {
 }
 
 /// Temporal region range
+@immutable
 class TemporalRange extends RegionRange {
   final Time time;
 
-  TemporalRange({required this.time});
+  const TemporalRange({required this.time});
 
   @override
   Map<String, dynamic> toJson() => {'time': time.toJson()};
@@ -515,10 +561,11 @@ class TemporalRange extends RegionRange {
 }
 
 /// Frame-based region range
+@immutable
 class FrameRange extends RegionRange {
   final Frame frame;
 
-  FrameRange({required this.frame});
+  const FrameRange({required this.frame});
 
   @override
   Map<String, dynamic> toJson() => {'frame': frame.toJson()};
@@ -531,10 +578,11 @@ class FrameRange extends RegionRange {
 }
 
 /// Text-based region range
+@immutable
 class TextualRange extends RegionRange {
   final TextSelector text;
 
-  TextualRange({required this.text});
+  const TextualRange({required this.text});
 
   @override
   Map<String, dynamic> toJson() => {'text': text.toJson()};
@@ -547,10 +595,11 @@ class TextualRange extends RegionRange {
 }
 
 /// Identified region range (by reference ID)
+@immutable
 class IdentifiedRange extends RegionRange {
   final String id;
 
-  IdentifiedRange({required this.id});
+  const IdentifiedRange({required this.id});
 
   @override
   Map<String, dynamic> toJson() => {'id': id};
@@ -561,6 +610,7 @@ class IdentifiedRange extends RegionRange {
 }
 
 /// Region of interest in content
+@immutable
 class RegionOfInterest {
   final List<RegionRange> region;
   final String? description;
@@ -658,6 +708,7 @@ class RegionOfInterest {
 }
 
 /// Hashed URI reference
+@immutable
 class HashedUri {
   final String url;
   final String? alg;
@@ -682,6 +733,7 @@ class HashedUri {
 }
 
 /// Resource reference for manifest resources
+@immutable
 class ResourceRef {
   final String identifier;
   final String? format;
@@ -703,6 +755,7 @@ class ResourceRef {
 }
 
 /// Resource data for adding resources to a manifest
+@immutable
 class ResourceData {
   final String identifier;
   final Uint8List data;
@@ -716,6 +769,7 @@ class ResourceData {
 }
 
 /// Asset type information
+@immutable
 class AssetType {
   final String type;
 
@@ -729,6 +783,7 @@ class AssetType {
 }
 
 /// Data source information
+@immutable
 class DataSource {
   final String type;
   final String? details;
@@ -757,6 +812,7 @@ class DataSource {
 }
 
 /// Validation status entry
+@immutable
 class ValidationStatusEntry {
   final String code;
   final String? url;
@@ -781,6 +837,7 @@ class ValidationStatusEntry {
 }
 
 /// Detailed validation results
+@immutable
 class ValidationResults {
   final List<ValidationStatusEntry> errors;
   final List<ValidationStatusEntry> warnings;
@@ -828,7 +885,77 @@ class ValidationResults {
   }
 }
 
+/// C2PA validation status codes as defined in the specification
+enum ValidationStatusCode {
+  // Success codes
+  claimSignatureValidated('claimSignature.validated'),
+  signingCredentialTrusted('signingCredential.trusted'),
+  timestampTrusted('timeStamp.trusted'),
+  assertionDataHashMatch('assertion.dataHash.match'),
+  assertionBmffHashMatch('assertion.bmffHash.match'),
+  assertionBoxesHashMatch('assertion.boxesHash.match'),
+  assertionCollectionHashMatch('assertion.collectionHash.match'),
+  assertionHashedUriMatch('assertion.hashedURI.match'),
+  assertionIngredientMatch('assertion.ingredientMatch'),
+  assertionAccessible('assertion.accessible'),
+
+  // Failure codes
+  assertionDataHashMismatch('assertion.dataHash.mismatch'),
+  assertionBmffHashMismatch('assertion.bmffHash.mismatch'),
+  assertionBoxesHashMismatch('assertion.boxesHash.mismatch'),
+  assertionCollectionHashMismatch('assertion.collectionHash.mismatch'),
+  assertionHashedUriMismatch('assertion.hashedURI.mismatch'),
+  assertionMissing('assertion.missing'),
+  assertionMultipleHardBindings('assertion.multipleHardBindings'),
+  assertionUndeclaredHashedUri('assertion.undeclaredHashedURI'),
+  assertionRequiredMissing('assertion.requiredMissing'),
+  assertionInaccessible('assertion.inaccessible'),
+  assertionCloudDataHardBinding('assertion.cloudData.hardBinding'),
+  assertionCloudDataActions('assertion.cloudData.actions'),
+  assertionCloudDataMismatch('assertion.cloudData.mismatch'),
+  assertionJsonInvalid('assertion.json.invalid'),
+  assertionCborInvalid('assertion.cbor.invalid'),
+  assertionActionIngredientMismatch('assertion.action.ingredientMismatch'),
+  assertionActionMissing('assertion.action.missing'),
+  assertionActionRedactionMissing('assertion.action.redactionMissing'),
+  assertionSelfRedacted('assertion.selfRedacted'),
+  assertionRedactedUriMismatch('assertion.redactedUriMismatch'),
+  assertionNotRedactable('assertion.notRedactable'),
+  claimMissing('claim.missing'),
+  claimMultiple('claim.multiple'),
+  claimHardBindingsMissing('claim.hardBindings.missing'),
+  claimRequiredMissing('claim.required.missing'),
+  claimCborInvalid('claim.cbor.invalid'),
+  claimSignatureMismatch('claimSignature.mismatch'),
+  claimSignatureMissing('claimSignature.missing'),
+  manifestMissing('manifest.missing'),
+  manifestMultipleParents('manifest.multipleParents'),
+  manifestUpdateWrongParents('manifest.updateWrongParents'),
+  manifestInaccessible('manifest.inaccessible'),
+  ingredientHashedUriMismatch('ingredient.hashedURI.mismatch'),
+  signingCredentialUntrusted('signingCredential.untrusted'),
+  signingCredentialInvalid('signingCredential.invalid'),
+  signingCredentialRevoked('signingCredential.revoked'),
+  signingCredentialExpired('signingCredential.expired'),
+  timestampMismatch('timeStamp.mismatch'),
+  timestampUntrusted('timeStamp.untrusted'),
+  timestampOutsideValidity('timeStamp.outsideValidity'),
+  algorithmUnsupported('algorithm.unsupported'),
+  generalError('general.error');
+
+  const ValidationStatusCode(this.code);
+  final String code;
+
+  static ValidationStatusCode? fromCode(String code) {
+    return ValidationStatusCode.values.cast<ValidationStatusCode?>().firstWhere(
+      (e) => e?.code == code,
+      orElse: () => null,
+    );
+  }
+}
+
 /// Assertion metadata
+@immutable
 class Metadata {
   final DateTime? dateTime;
   final String? reviewRatings;
@@ -870,6 +997,7 @@ class Metadata {
 // =============================================================================
 
 /// An action performed on content
+@immutable
 class Action {
   /// The action identifier (use PredefinedAction.value or custom string)
   final String action;
@@ -1098,6 +1226,7 @@ class Action {
 // =============================================================================
 
 /// An ingredient (source material) in a manifest
+@immutable
 class Ingredient {
   final String? title;
   final String? format;
@@ -1237,6 +1366,7 @@ class Ingredient {
 // =============================================================================
 
 /// Information about the software that created the manifest
+@immutable
 class ClaimGeneratorInfo {
   final String name;
   final String? version;
@@ -1270,6 +1400,7 @@ class ClaimGeneratorInfo {
 // =============================================================================
 
 /// Entry for AI training/mining permissions
+@immutable
 class TrainingMiningEntry {
   final String use;
   final TrainingMiningPermission permission;
@@ -1358,7 +1489,10 @@ class TrainingMiningEntry {
 // =============================================================================
 
 /// Base class for assertion definitions
+@immutable
 sealed class AssertionDefinition {
+  const AssertionDefinition();
+
   /// The assertion label
   String get label;
 
@@ -1378,6 +1512,10 @@ sealed class AssertionDefinition {
       return IptcPhotoMetadataAssertion.fromData(data);
     } else if (label == StandardAssertionLabel.trainingMining.value) {
       return TrainingMiningAssertion.fromData(data);
+    } else if (label == StandardAssertionLabel.cawgIdentity.value) {
+      return CawgIdentityAssertion.fromData(data);
+    } else if (label == StandardAssertionLabel.cawgTrainingMining.value) {
+      return CawgTrainingMiningAssertion.fromData(data);
     } else {
       return CustomAssertion(label: label, data: data);
     }
@@ -1385,6 +1523,7 @@ sealed class AssertionDefinition {
 }
 
 /// Actions assertion
+@immutable
 class ActionsAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.actions.value;
@@ -1392,7 +1531,7 @@ class ActionsAssertion extends AssertionDefinition {
   final List<Action> actions;
   final Metadata? metadata;
 
-  ActionsAssertion({required this.actions, this.metadata});
+  const ActionsAssertion({required this.actions, this.metadata});
 
   @override
   Map<String, dynamic> toJson() {
@@ -1418,6 +1557,7 @@ class ActionsAssertion extends AssertionDefinition {
 }
 
 /// Creative work assertion (schema.org)
+@immutable
 class CreativeWorkAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.creativeWork.value;
@@ -1430,7 +1570,7 @@ class CreativeWorkAssertion extends AssertionDefinition {
   final String? license;
   final Map<String, dynamic>? additionalData;
 
-  CreativeWorkAssertion({
+  const CreativeWorkAssertion({
     this.context = 'https://schema.org/',
     this.type = 'CreativeWork',
     this.author,
@@ -1479,13 +1619,14 @@ class CreativeWorkAssertion extends AssertionDefinition {
 }
 
 /// EXIF metadata assertion
+@immutable
 class ExifAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.exif.value;
 
   final Map<String, dynamic> data;
 
-  ExifAssertion({required this.data});
+  const ExifAssertion({required this.data});
 
   @override
   Map<String, dynamic> toJson() => {'label': label, 'data': data};
@@ -1496,13 +1637,14 @@ class ExifAssertion extends AssertionDefinition {
 }
 
 /// IPTC Photo Metadata assertion
+@immutable
 class IptcPhotoMetadataAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.iptcPhotoMetadata.value;
 
   final Map<String, dynamic> data;
 
-  IptcPhotoMetadataAssertion({required this.data});
+  const IptcPhotoMetadataAssertion({required this.data});
 
   @override
   Map<String, dynamic> toJson() => {'label': label, 'data': data};
@@ -1513,6 +1655,7 @@ class IptcPhotoMetadataAssertion extends AssertionDefinition {
 }
 
 /// Training/mining permission assertion
+@immutable
 class TrainingMiningAssertion extends AssertionDefinition {
   @override
   String get label => StandardAssertionLabel.trainingMining.value;
@@ -1520,7 +1663,7 @@ class TrainingMiningAssertion extends AssertionDefinition {
   final List<TrainingMiningEntry> entries;
   final Metadata? metadata;
 
-  TrainingMiningAssertion({required this.entries, this.metadata});
+  const TrainingMiningAssertion({required this.entries, this.metadata});
 
   @override
   Map<String, dynamic> toJson() {
@@ -1546,16 +1689,121 @@ class TrainingMiningAssertion extends AssertionDefinition {
 }
 
 /// Custom assertion with arbitrary data
+@immutable
 class CustomAssertion extends AssertionDefinition {
   @override
   final String label;
 
   final Map<String, dynamic> data;
 
-  CustomAssertion({required this.label, required this.data});
+  const CustomAssertion({required this.label, required this.data});
 
   @override
   Map<String, dynamic> toJson() => {'label': label, 'data': data};
+}
+
+/// CAWG identity assertion
+///
+/// Per the CAWG specification, identity assertions MUST be placed in
+/// [ManifestDefinition.gatheredAssertions], not in [ManifestDefinition.assertions].
+@immutable
+class CawgIdentityAssertion extends AssertionDefinition {
+  @override
+  String get label => StandardAssertionLabel.cawgIdentity.value;
+
+  final Map<String, dynamic> data;
+
+  const CawgIdentityAssertion({required this.data});
+
+  @override
+  Map<String, dynamic> toJson() => {'label': label, 'data': data};
+
+  factory CawgIdentityAssertion.fromData(Map<String, dynamic> data) {
+    return CawgIdentityAssertion(data: data);
+  }
+}
+
+/// CAWG AI training and data mining assertion
+@immutable
+class CawgTrainingMiningAssertion extends AssertionDefinition {
+  @override
+  String get label => StandardAssertionLabel.cawgTrainingMining.value;
+
+  final List<CawgTrainingMiningEntry> entries;
+  final Metadata? metadata;
+
+  const CawgTrainingMiningAssertion({required this.entries, this.metadata});
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'label': label,
+      'data': {
+        'entries': entries.map((e) => e.toJson()).toList(),
+        if (metadata != null) 'metadata': metadata!.toJson(),
+      },
+    };
+  }
+
+  factory CawgTrainingMiningAssertion.fromData(Map<String, dynamic> data) {
+    return CawgTrainingMiningAssertion(
+      entries: (data['entries'] as List<dynamic>)
+          .map(
+            (e) => CawgTrainingMiningEntry.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(),
+      metadata: data['metadata'] != null
+          ? Metadata.fromJson(data['metadata'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+/// Entry for CAWG AI training and data mining permissions
+@immutable
+class CawgTrainingMiningEntry {
+  final String use;
+  final TrainingMiningPermission permission;
+  final String? constraintInfo;
+  final String? aiModelLearningType;
+  final String? aiMiningType;
+
+  const CawgTrainingMiningEntry({
+    required this.use,
+    required this.permission,
+    this.constraintInfo,
+    this.aiModelLearningType,
+    this.aiMiningType,
+  });
+
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{'use': use, permission.value: true};
+    if (constraintInfo != null) map['constraint_info'] = constraintInfo;
+    if (aiModelLearningType != null) {
+      map['ai_model_learning_type'] = aiModelLearningType;
+    }
+    if (aiMiningType != null) map['ai_mining_type'] = aiMiningType;
+    return map;
+  }
+
+  factory CawgTrainingMiningEntry.fromJson(Map<String, dynamic> json) {
+    TrainingMiningPermission permission;
+    if (json['allowed'] == true) {
+      permission = TrainingMiningPermission.allowed;
+    } else if (json['constrained'] == true) {
+      permission = TrainingMiningPermission.constrained;
+    } else {
+      permission = TrainingMiningPermission.notAllowed;
+    }
+
+    return CawgTrainingMiningEntry(
+      use: json['use'] as String,
+      permission: permission,
+      constraintInfo: json['constraint_info'] as String?,
+      aiModelLearningType: json['ai_model_learning_type'] as String?,
+      aiMiningType: json['ai_mining_type'] as String?,
+    );
+  }
 }
 
 // =============================================================================
@@ -1563,10 +1811,12 @@ class CustomAssertion extends AssertionDefinition {
 // =============================================================================
 
 /// Complete manifest definition for building C2PA manifests
+@immutable
 class ManifestDefinition {
   final String title;
   final List<ClaimGeneratorInfo> claimGeneratorInfo;
   final List<AssertionDefinition> assertions;
+  final List<AssertionDefinition> gatheredAssertions;
   final List<Ingredient> ingredients;
   final ResourceRef? thumbnail;
   final String? format;
@@ -1580,6 +1830,7 @@ class ManifestDefinition {
     required this.title,
     required this.claimGeneratorInfo,
     this.assertions = const [],
+    this.gatheredAssertions = const [],
     this.ingredients = const [],
     this.thumbnail,
     this.format,
@@ -1587,7 +1838,7 @@ class ManifestDefinition {
     this.label,
     this.instanceId,
     this.redactions,
-    this.claimVersion = 1,
+    this.claimVersion = 2,
   });
 
   /// Create a manifest for new content creation
@@ -1671,6 +1922,40 @@ class ManifestDefinition {
     );
   }
 
+  /// Create a manifest with explicit created and gathered assertion separation
+  factory ManifestDefinition.withAssertions({
+    required String title,
+    required ClaimGeneratorInfo claimGenerator,
+    List<AssertionDefinition> createdAssertions = const [],
+    List<AssertionDefinition> gatheredAssertions = const [],
+    List<Ingredient> ingredients = const [],
+  }) {
+    return ManifestDefinition(
+      title: title,
+      claimGeneratorInfo: [claimGenerator],
+      assertions: createdAssertions,
+      gatheredAssertions: gatheredAssertions,
+      ingredients: ingredients,
+    );
+  }
+
+  /// Create a manifest with CAWG identity assertions in gathered assertions
+  factory ManifestDefinition.withCawgIdentity({
+    required String title,
+    required ClaimGeneratorInfo claimGenerator,
+    required List<AssertionDefinition> identityAssertions,
+    List<AssertionDefinition>? createdAssertions,
+    List<Ingredient> ingredients = const [],
+  }) {
+    return ManifestDefinition(
+      title: title,
+      claimGeneratorInfo: [claimGenerator],
+      assertions: createdAssertions ?? const [],
+      gatheredAssertions: identityAssertions,
+      ingredients: ingredients,
+    );
+  }
+
   /// Convert to JSON string for the platform API
   String toJsonString() => jsonEncode(toJson());
 
@@ -1691,6 +1976,12 @@ class ManifestDefinition {
       map['assertions'] = assertions.map((a) => a.toJson()).toList();
     }
 
+    if (gatheredAssertions.isNotEmpty) {
+      map['gathered_assertions'] = gatheredAssertions
+          .map((a) => a.toJson())
+          .toList();
+    }
+
     if (ingredients.isNotEmpty) {
       map['ingredients'] = ingredients.map((i) => i.toJson()).toList();
     }
@@ -1701,7 +1992,7 @@ class ManifestDefinition {
     if (label != null) map['label'] = label;
     if (instanceId != null) map['instance_id'] = instanceId;
     if (redactions != null) map['redactions'] = redactions;
-    if (claimVersion != 1) map['claim_version'] = claimVersion;
+    if (claimVersion != 2) map['claim_version'] = claimVersion;
 
     return map;
   }
@@ -1727,6 +2018,13 @@ class ManifestDefinition {
               )
               .toList() ??
           [],
+      gatheredAssertions:
+          (map['gathered_assertions'] as List<dynamic>?)
+              ?.map(
+                (a) => AssertionDefinition.fromJson(a as Map<String, dynamic>),
+              )
+              .toList() ??
+          [],
       ingredients:
           (map['ingredients'] as List<dynamic>?)
               ?.map((i) => Ingredient.fromJson(i as Map<String, dynamic>))
@@ -1742,7 +2040,7 @@ class ManifestDefinition {
       redactions: (map['redactions'] as List<dynamic>?)
           ?.cast<String>()
           .toList(),
-      claimVersion: map['claim_version'] as int? ?? 1,
+      claimVersion: map['claim_version'] as int? ?? 2,
     );
   }
 }

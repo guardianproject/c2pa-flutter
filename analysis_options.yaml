@@ -1,4 +1,17 @@
 include: package:flutter_lints/flutter.yaml
 
+linter:
+  rules:
+    # Enforce const constructors where possible
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+
+    # Enforce final local variables
+    prefer_final_locals: true
+
+    # Require trailing commas for better diffs
+    require_trailing_commas: true
+
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
