@@ -402,9 +402,7 @@ class SettingsValidator {
 
     final cert = local['sign_cert'];
     if (cert is String && !_isValidPEM(cert, 'CERTIFICATE')) {
-      errors.add(
-        '$path.sign_cert must be valid PEM-formatted certificate(s)',
-      );
+      errors.add('$path.sign_cert must be valid PEM-formatted certificate(s)');
     }
 
     final key = local['private_key'];
@@ -453,9 +451,7 @@ class SettingsValidator {
 
     final cert = remote['sign_cert'];
     if (cert is String && !_isValidPEM(cert, 'CERTIFICATE')) {
-      errors.add(
-        '$path.sign_cert must be valid PEM-formatted certificate(s)',
-      );
+      errors.add('$path.sign_cert must be valid PEM-formatted certificate(s)');
     }
 
     final tsaUrl = remote['tsa_url'];

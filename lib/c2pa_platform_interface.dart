@@ -409,9 +409,7 @@ abstract class C2paPlatform extends PlatformInterface {
     bool detailed,
     String? dataDir,
   ) {
-    throw UnimplementedError(
-      'readFileWithContext() has not been implemented.',
-    );
+    throw UnimplementedError('readFileWithContext() has not been implemented.');
   }
 
   // =============================================================================

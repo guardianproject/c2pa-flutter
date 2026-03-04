@@ -110,9 +110,7 @@ class ManifestValidator {
       final manifest = ManifestDefinition.fromMap(map);
       return validate(manifest);
     } catch (e) {
-      return ValidationResult(
-        errors: ['Failed to parse manifest JSON: $e'],
-      );
+      return ValidationResult(errors: ['Failed to parse manifest JSON: $e']);
     }
   }
 
@@ -165,7 +163,8 @@ class ManifestValidator {
     for (final assertion in assertions) {
       final label = assertion.label;
       if (deprecatedAssertionLabels.contains(label)) {
-        final replacement = _deprecatedReplacements[label] ??
+        final replacement =
+            _deprecatedReplacements[label] ??
             'Check the C2PA 2.3 specification for current alternatives.';
         warnings.add(
           "Assertion '$label' is deprecated in C2PA 2.x. $replacement",

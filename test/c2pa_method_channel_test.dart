@@ -113,7 +113,10 @@ void main() {
       final builder = await platform.createBuilder('{}');
 
       builder.addAction(
-        const ActionConfig(action: 'c2pa.created', softwareAgent: 'TestApp/1.0'),
+        const ActionConfig(
+          action: 'c2pa.created',
+          softwareAgent: 'TestApp/1.0',
+        ),
       );
 
       await builder.sign(

@@ -16,7 +16,8 @@ import 'package:c2pa_flutter/c2pa.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Test PEM certificate chain (from test fixtures)
-const testCert = '-----BEGIN CERTIFICATE-----\n'
+const testCert =
+    '-----BEGIN CERTIFICATE-----\n'
     'MIIChzCCAi6gAwIBAgIUcCTmJHYF8dZfG0d1UdT6/LXtkeYwCgYIKoZIzj0EAwIw\n'
     'gYwxCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTESMBAGA1UEBwwJU29tZXdoZXJl\n'
     'MScwJQYDVQQKDB5DMlBBIFRlc3QgSW50ZXJtZWRpYXRlIFJvb3QgQ0ExGTAXBgNV\n'
@@ -24,7 +25,8 @@ const testCert = '-----BEGIN CERTIFICATE-----\n'
     'Fw0yMjA2MTAxODQ2NDBaFw0zMDA4MjYxODQ2NDBaMIGAMQswCQYDVQQGEwJVUzEL\n'
     '-----END CERTIFICATE-----';
 
-const testKey = '-----BEGIN PRIVATE KEY-----\n'
+const testKey =
+    '-----BEGIN PRIVATE KEY-----\n'
     'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgfNJBsaRLSeHizv0m\n'
     'GL+gcn78QmtfLSm+n+qG9veC2W2hRANCAAQPaL6RkAkYkKU4+IryBSYxJM3h77sF\n'
     'iMrbvbI8fG7w2Bbl9otNG/cch3DAw5rGAPV7NWkyl3QGuV/wt0MrAPDo\n'
@@ -50,10 +52,7 @@ void main() {
       test('missing version produces error', () {
         final result = validateSettings({});
         expect(result.hasErrors, isTrue);
-        expect(
-          result.errors,
-          contains(contains('version')),
-        );
+        expect(result.errors, contains(contains('version')));
       });
 
       test('non-integer version produces error', () {
@@ -68,10 +67,7 @@ void main() {
       test('wrong version number produces error', () {
         final result = validateSettings({'version': 2});
         expect(result.hasErrors, isTrue);
-        expect(
-          result.errors,
-          contains(contains("'version' must be 1, got 2")),
-        );
+        expect(result.errors, contains(contains("'version' must be 1, got 2")));
       });
 
       test('correct version (1) passes', () {
@@ -92,10 +88,7 @@ void main() {
         });
         expect(result.isValid, isTrue);
         expect(result.hasWarnings, isTrue);
-        expect(
-          result.warnings,
-          contains(contains('Unknown top-level key')),
-        );
+        expect(result.warnings, contains(contains('Unknown top-level key')));
       });
 
       test('all known keys are accepted without warnings', () {
@@ -137,58 +130,37 @@ void main() {
       test('valid trust section passes', () {
         final result = validateSettings({
           'version': 1,
-          'trust': {
-            'user_anchors': testCert,
-            'trust_anchors': testCert,
-          },
+          'trust': {'user_anchors': testCert, 'trust_anchors': testCert},
         });
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('trust')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('trust')), isEmpty);
       });
 
       test('invalid PEM in user_anchors produces error', () {
         final result = validateSettings({
           'version': 1,
-          'trust': {
-            'user_anchors': invalidPem,
-          },
+          'trust': {'user_anchors': invalidPem},
         });
         expect(result.hasErrors, isTrue);
-        expect(
-          result.errors,
-          contains(contains('trust.user_anchors')),
-        );
+        expect(result.errors, contains(contains('trust.user_anchors')));
       });
 
       test('invalid PEM in trust_anchors produces error', () {
         final result = validateSettings({
           'version': 1,
-          'trust': {
-            'trust_anchors': invalidPem,
-          },
+          'trust': {'trust_anchors': invalidPem},
         });
         expect(result.hasErrors, isTrue);
-        expect(
-          result.errors,
-          contains(contains('trust.trust_anchors')),
-        );
+        expect(result.errors, contains(contains('trust.trust_anchors')));
       });
 
       test('unknown key in trust section produces warning', () {
         final result = validateSettings({
           'version': 1,
-          'trust': {
-            'unknown_field': 'value',
-          },
+          'trust': {'unknown_field': 'value'},
         });
         expect(result.hasWarnings, isTrue);
-        expect(
-          result.warnings,
-          contains(contains("Unknown key in trust")),
-        );
+        expect(result.warnings, contains(contains("Unknown key in trust")));
       });
 
       test('cawg_trust section validates same as trust', () {
@@ -196,15 +168,10 @@ void main() {
         // cawg_trust prefix.
         final result = validateSettings({
           'version': 1,
-          'cawg_trust': {
-            'user_anchors': invalidPem,
-          },
+          'cawg_trust': {'user_anchors': invalidPem},
         });
         expect(result.hasErrors, isTrue);
-        expect(
-          result.errors,
-          contains(contains('cawg_trust.user_anchors')),
-        );
+        expect(result.errors, contains(contains('cawg_trust.user_anchors')));
       });
     });
 
@@ -225,18 +192,13 @@ void main() {
         });
         expect(result.isValid, isTrue);
         // No errors related to verify
-        expect(
-          result.errors.where((e) => e.contains('verify')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('verify')), isEmpty);
       });
 
       test('non-boolean value in verify produces error', () {
         final result = validateSettings({
           'version': 1,
-          'verify': {
-            'verify_trust': 'yes',
-          },
+          'verify': {'verify_trust': 'yes'},
         });
         expect(result.hasErrors, isTrue);
         expect(
@@ -248,9 +210,7 @@ void main() {
       test('verify_trust=false produces security warning', () {
         final result = validateSettings({
           'version': 1,
-          'verify': {
-            'verify_trust': false,
-          },
+          'verify': {'verify_trust': false},
         });
         expect(result.hasWarnings, isTrue);
         expect(
@@ -262,9 +222,7 @@ void main() {
       test('verify_timestamp_trust=false produces security warning', () {
         final result = validateSettings({
           'version': 1,
-          'verify': {
-            'verify_timestamp_trust': false,
-          },
+          'verify': {'verify_timestamp_trust': false},
         });
         expect(result.hasWarnings, isTrue);
         expect(
@@ -276,9 +234,7 @@ void main() {
       test('verify_after_sign=false produces security warning', () {
         final result = validateSettings({
           'version': 1,
-          'verify': {
-            'verify_after_sign': false,
-          },
+          'verify': {'verify_after_sign': false},
         });
         expect(result.hasWarnings, isTrue);
         expect(
@@ -290,15 +246,10 @@ void main() {
       test('unknown key in verify produces warning', () {
         final result = validateSettings({
           'version': 1,
-          'verify': {
-            'not_a_real_key': true,
-          },
+          'verify': {'not_a_real_key': true},
         });
         expect(result.hasWarnings, isTrue);
-        expect(
-          result.warnings,
-          contains(contains("Unknown key in verify")),
-        );
+        expect(result.warnings, contains(contains("Unknown key in verify")));
       });
     });
 
@@ -317,60 +268,40 @@ void main() {
           },
         });
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('builder')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('builder')), isEmpty);
       });
 
       test('unknown key in builder produces warning', () {
         final result = validateSettings({
           'version': 1,
-          'builder': {
-            'fake_option': 42,
-          },
+          'builder': {'fake_option': 42},
         });
         expect(result.hasWarnings, isTrue);
-        expect(
-          result.warnings,
-          contains(contains("Unknown key in builder")),
-        );
+        expect(result.warnings, contains(contains("Unknown key in builder")));
       });
 
       test("valid intent string 'Edit' passes", () {
         final result = validateSettings({
           'version': 1,
-          'builder': {
-            'intent': 'Edit',
-          },
+          'builder': {'intent': 'Edit'},
         });
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('intent')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('intent')), isEmpty);
       });
 
       test("valid intent string 'Update' passes", () {
         final result = validateSettings({
           'version': 1,
-          'builder': {
-            'intent': 'Update',
-          },
+          'builder': {'intent': 'Update'},
         });
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('intent')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('intent')), isEmpty);
       });
 
       test('invalid intent string produces error', () {
         final result = validateSettings({
           'version': 1,
-          'builder': {
-            'intent': 'Delete',
-          },
+          'builder': {'intent': 'Delete'},
         });
         expect(result.hasErrors, isTrue);
         expect(
@@ -379,8 +310,7 @@ void main() {
         );
       });
 
-      test('intent as object with Create key and valid source type passes',
-          () {
+      test('intent as object with Create key and valid source type passes', () {
         final result = validateSettings({
           'version': 1,
           'builder': {
@@ -388,10 +318,7 @@ void main() {
           },
         });
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('intent')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('intent')), isEmpty);
       });
 
       test('intent as object with invalid source type produces error', () {
@@ -404,7 +331,9 @@ void main() {
         expect(result.hasErrors, isTrue);
         expect(
           result.errors,
-          contains(contains('builder.intent Create source type must be one of')),
+          contains(
+            contains('builder.intent Create source type must be one of'),
+          ),
         );
       });
 
@@ -425,9 +354,7 @@ void main() {
       test('invalid intent type (not string or map) produces error', () {
         final result = validateSettings({
           'version': 1,
-          'builder': {
-            'intent': 42,
-          },
+          'builder': {'intent': 42},
         });
         expect(result.hasErrors, isTrue);
         expect(
@@ -449,10 +376,7 @@ void main() {
           },
         });
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('thumbnail')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('thumbnail')), isEmpty);
       });
 
       test('invalid format produces error', () {
@@ -477,10 +401,7 @@ void main() {
           },
         });
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('thumbnail')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('thumbnail')), isEmpty);
       });
 
       test('invalid quality produces error', () {
@@ -534,10 +455,7 @@ void main() {
       test('valid local signer passes', () {
         final result = validateSettings(localSignerSettings());
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('signer')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('signer')), isEmpty);
       });
 
       test('missing alg produces error', () {
@@ -574,9 +492,9 @@ void main() {
       });
 
       test('invalid algorithm produces error', () {
-        final result = validateSettings(localSignerSettings(
-          localOverrides: {'alg': 'rsa1024'},
-        ));
+        final result = validateSettings(
+          localSignerSettings(localOverrides: {'alg': 'rsa1024'}),
+        );
         expect(result.hasErrors, isTrue);
         expect(
           result.errors,
@@ -585,9 +503,9 @@ void main() {
       });
 
       test('invalid PEM cert produces error', () {
-        final result = validateSettings(localSignerSettings(
-          localOverrides: {'sign_cert': invalidPem},
-        ));
+        final result = validateSettings(
+          localSignerSettings(localOverrides: {'sign_cert': invalidPem}),
+        );
         expect(result.hasErrors, isTrue);
         expect(
           result.errors,
@@ -596,9 +514,9 @@ void main() {
       });
 
       test('invalid PEM key produces error', () {
-        final result = validateSettings(localSignerSettings(
-          localOverrides: {'private_key': invalidPem},
-        ));
+        final result = validateSettings(
+          localSignerSettings(localOverrides: {'private_key': invalidPem}),
+        );
         expect(result.hasErrors, isTrue);
         expect(
           result.errors,
@@ -607,9 +525,9 @@ void main() {
       });
 
       test('invalid tsa_url produces error', () {
-        final result = validateSettings(localSignerSettings(
-          localOverrides: {'tsa_url': 'not-a-url'},
-        ));
+        final result = validateSettings(
+          localSignerSettings(localOverrides: {'tsa_url': 'not-a-url'}),
+        );
         expect(result.hasErrors, isTrue);
         expect(
           result.errors,
@@ -618,20 +536,19 @@ void main() {
       });
 
       test('valid tsa_url passes', () {
-        final result = validateSettings(localSignerSettings(
-          localOverrides: {'tsa_url': 'http://timestamp.example.com'},
-        ));
-        expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('tsa_url')),
-          isEmpty,
+        final result = validateSettings(
+          localSignerSettings(
+            localOverrides: {'tsa_url': 'http://timestamp.example.com'},
+          ),
         );
+        expect(result.isValid, isTrue);
+        expect(result.errors.where((e) => e.contains('tsa_url')), isEmpty);
       });
 
       test('unknown key produces warning', () {
-        final result = validateSettings(localSignerSettings(
-          localOverrides: {'extra_field': 'surprise'},
-        ));
+        final result = validateSettings(
+          localSignerSettings(localOverrides: {'extra_field': 'surprise'}),
+        );
         expect(result.hasWarnings, isTrue);
         expect(
           result.warnings,
@@ -662,10 +579,7 @@ void main() {
       test('valid remote signer passes', () {
         final result = validateSettings(remoteSignerSettings());
         expect(result.isValid, isTrue);
-        expect(
-          result.errors.where((e) => e.contains('signer')),
-          isEmpty,
-        );
+        expect(result.errors.where((e) => e.contains('signer')), isEmpty);
       });
 
       test('missing url produces error', () {
@@ -702,9 +616,11 @@ void main() {
       });
 
       test('invalid url produces error', () {
-        final result = validateSettings(remoteSignerSettings(
-          remoteOverrides: {'url': 'ftp://bad-scheme.example.com'},
-        ));
+        final result = validateSettings(
+          remoteSignerSettings(
+            remoteOverrides: {'url': 'ftp://bad-scheme.example.com'},
+          ),
+        );
         expect(result.hasErrors, isTrue);
         expect(
           result.errors,
@@ -713,9 +629,9 @@ void main() {
       });
 
       test('invalid algorithm produces error', () {
-        final result = validateSettings(remoteSignerSettings(
-          remoteOverrides: {'alg': 'sha1'},
-        ));
+        final result = validateSettings(
+          remoteSignerSettings(remoteOverrides: {'alg': 'sha1'}),
+        );
         expect(result.hasErrors, isTrue);
         expect(
           result.errors,
@@ -793,10 +709,7 @@ void main() {
       test('complete valid settings passes', () {
         final result = validateSettings({
           'version': 1,
-          'trust': {
-            'user_anchors': testCert,
-            'trust_anchors': testCert,
-          },
+          'trust': {'user_anchors': testCert, 'trust_anchors': testCert},
           'verify': {
             'verify_after_reading': true,
             'verify_trust': true,
@@ -808,11 +721,7 @@ void main() {
               {'name': 'TestApp', 'version': '1.0'},
             ],
             'intent': 'Edit',
-            'thumbnail': {
-              'format': 'jpeg',
-              'quality': 'high',
-              'enabled': true,
-            },
+            'thumbnail': {'format': 'jpeg', 'quality': 'high', 'enabled': true},
           },
           'signer': {
             'local': {

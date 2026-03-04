@@ -136,17 +136,16 @@ void main() {
     test('v2 claimVersion produces no warning', () {
       final manifest = validManifest(claimVersion: 2);
       final result = ManifestValidator.validate(manifest);
-      expect(
-        result.warnings.any((w) => w.contains('claim_version')),
-        isFalse,
-      );
+      expect(result.warnings.any((w) => w.contains('claim_version')), isFalse);
     });
 
     test(
       'deprecated assertion stds.exif in assertions produces warning with correct message',
       () {
         final manifest = validManifest(
-          assertions: [ExifAssertion(data: {'key': 'value'})],
+          assertions: [
+            ExifAssertion(data: {'key': 'value'}),
+          ],
         );
         final result = ManifestValidator.validate(manifest);
         expect(result.hasWarnings, isTrue);
@@ -162,26 +161,23 @@ void main() {
       },
     );
 
-    test(
-      'deprecated assertion stds.iptc.photo-metadata produces warning',
-      () {
-        final manifest = validManifest(
-          assertions: [
-            IptcPhotoMetadataAssertion(data: {'key': 'value'}),
-          ],
-        );
-        final result = ManifestValidator.validate(manifest);
-        expect(result.hasWarnings, isTrue);
-        expect(
-          result.warnings.any(
-            (w) =>
-                w.contains("'stds.iptc.photo-metadata'") &&
-                w.contains('deprecated'),
-          ),
-          isTrue,
-        );
-      },
-    );
+    test('deprecated assertion stds.iptc.photo-metadata produces warning', () {
+      final manifest = validManifest(
+        assertions: [
+          IptcPhotoMetadataAssertion(data: {'key': 'value'}),
+        ],
+      );
+      final result = ManifestValidator.validate(manifest);
+      expect(result.hasWarnings, isTrue);
+      expect(
+        result.warnings.any(
+          (w) =>
+              w.contains("'stds.iptc.photo-metadata'") &&
+              w.contains('deprecated'),
+        ),
+        isTrue,
+      );
+    });
 
     test(
       'deprecated assertion stds.schema-org.CreativeWork produces warning',
@@ -212,50 +208,49 @@ void main() {
       expect(result.hasWarnings, isTrue);
       expect(
         result.warnings.any(
-          (w) =>
-              w.contains("'c2pa.endorsement'") && w.contains('deprecated'),
-        ),
-        isTrue,
-      );
-    });
-
-    test('deprecated assertion in gatheredAssertions also produces warning',
-        () {
-      final manifest = validManifest(
-        gatheredAssertions: [ExifAssertion(data: {'key': 'value'})],
-      );
-      final result = ManifestValidator.validate(manifest);
-      expect(result.hasWarnings, isTrue);
-      expect(
-        result.warnings.any(
-          (w) =>
-              w.contains("'stds.exif'") && w.contains('deprecated'),
+          (w) => w.contains("'c2pa.endorsement'") && w.contains('deprecated'),
         ),
         isTrue,
       );
     });
 
     test(
-      'CawgIdentityAssertion in assertions (created) produces warning',
+      'deprecated assertion in gatheredAssertions also produces warning',
       () {
         final manifest = validManifest(
-          assertions: [
-            CawgIdentityAssertion(data: {'sig_type': 'cawg.x509.cose'}),
+          gatheredAssertions: [
+            ExifAssertion(data: {'key': 'value'}),
           ],
         );
         final result = ManifestValidator.validate(manifest);
         expect(result.hasWarnings, isTrue);
         expect(
           result.warnings.any(
-            (w) =>
-                w.contains('CAWG identity assertion') &&
-                w.contains('created assertions') &&
-                w.contains('gathered_assertions'),
+            (w) => w.contains("'stds.exif'") && w.contains('deprecated'),
           ),
           isTrue,
         );
       },
     );
+
+    test('CawgIdentityAssertion in assertions (created) produces warning', () {
+      final manifest = validManifest(
+        assertions: [
+          CawgIdentityAssertion(data: {'sig_type': 'cawg.x509.cose'}),
+        ],
+      );
+      final result = ManifestValidator.validate(manifest);
+      expect(result.hasWarnings, isTrue);
+      expect(
+        result.warnings.any(
+          (w) =>
+              w.contains('CAWG identity assertion') &&
+              w.contains('created assertions') &&
+              w.contains('gathered_assertions'),
+        ),
+        isTrue,
+      );
+    });
 
     test(
       'CawgIdentityAssertion in gatheredAssertions does NOT produce warning about placement',
@@ -285,8 +280,7 @@ void main() {
       expect(result.hasWarnings, isTrue);
       expect(
         result.warnings.any(
-          (w) =>
-              w.contains('Source Image') && w.contains('no relationship'),
+          (w) => w.contains('Source Image') && w.contains('no relationship'),
         ),
         isTrue,
       );
@@ -304,15 +298,10 @@ void main() {
     });
 
     test('unnamed ingredient warning contains unnamed', () {
-      final manifest = validManifest(
-        ingredients: [const Ingredient()],
-      );
+      final manifest = validManifest(ingredients: [const Ingredient()]);
       final result = ManifestValidator.validate(manifest);
       expect(result.hasWarnings, isTrue);
-      expect(
-        result.warnings.any((w) => w.contains('unnamed')),
-        isTrue,
-      );
+      expect(result.warnings.any((w) => w.contains('unnamed')), isTrue);
     });
 
     test('multiple issues combine correctly', () {
@@ -421,10 +410,7 @@ void main() {
   group('ManifestValidator.isCawgIdentityProperlyPlaced()', () {
     test('returns true when no CAWG identity in created assertions', () {
       final manifest = validManifest();
-      expect(
-        ManifestValidator.isCawgIdentityProperlyPlaced(manifest),
-        isTrue,
-      );
+      expect(ManifestValidator.isCawgIdentityProperlyPlaced(manifest), isTrue);
     });
 
     test('returns false when CAWG identity in created assertions', () {
@@ -433,10 +419,7 @@ void main() {
           CawgIdentityAssertion(data: {'sig_type': 'cawg.x509.cose'}),
         ],
       );
-      expect(
-        ManifestValidator.isCawgIdentityProperlyPlaced(manifest),
-        isFalse,
-      );
+      expect(ManifestValidator.isCawgIdentityProperlyPlaced(manifest), isFalse);
     });
 
     test('returns true when CAWG identity only in gathered assertions', () {
@@ -445,10 +428,7 @@ void main() {
           CawgIdentityAssertion(data: {'sig_type': 'cawg.x509.cose'}),
         ],
       );
-      expect(
-        ManifestValidator.isCawgIdentityProperlyPlaced(manifest),
-        isTrue,
-      );
+      expect(ManifestValidator.isCawgIdentityProperlyPlaced(manifest), isTrue);
     });
   });
 

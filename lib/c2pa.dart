@@ -507,11 +507,7 @@ class SettingsSigner extends C2paSigner {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
-      'type': 'settings',
-      'settings': settingsString,
-      'format': format,
-    };
+    return {'type': 'settings', 'settings': settingsString, 'format': format};
   }
 }
 
@@ -591,7 +587,8 @@ class SignatureInfo {
               orElse: () => SigningAlgorithm.es256,
             )
           : null,
-      serialNumber: map['serial_number'] as String? ??
+      serialNumber:
+          map['serial_number'] as String? ??
           map['cert_serial_number'] as String?,
     );
   }
@@ -618,7 +615,10 @@ class ValidationError {
   factory ValidationError.fromMap(Map<String, dynamic> map) {
     return ValidationError(
       code: map['code'] as String? ?? 'unknown',
-      message: map['message'] as String? ?? map['explanation'] as String? ?? 'Unknown error',
+      message:
+          map['message'] as String? ??
+          map['explanation'] as String? ??
+          'Unknown error',
       manifestLabel: map['manifest_label'] as String? ?? map['url'] as String?,
     );
   }
@@ -974,11 +974,10 @@ class BuilderOptions {
   });
 
   Map<String, dynamic> toMap() {
-    final map = <String, dynamic>{
-      'embed': embed,
-    };
+    final map = <String, dynamic>{'embed': embed};
     if (intent != null) map['intent'] = intent!.name;
-    if (digitalSourceType != null) map['digitalSourceType'] = digitalSourceType!.url;
+    if (digitalSourceType != null)
+      map['digitalSourceType'] = digitalSourceType!.url;
     if (remoteUrl != null) map['remoteUrl'] = remoteUrl;
     return map;
   }

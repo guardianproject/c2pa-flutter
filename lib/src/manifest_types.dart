@@ -1749,8 +1749,7 @@ class CawgTrainingMiningAssertion extends AssertionDefinition {
     return CawgTrainingMiningAssertion(
       entries: (data['entries'] as List<dynamic>)
           .map(
-            (e) =>
-                CawgTrainingMiningEntry.fromJson(e as Map<String, dynamic>),
+            (e) => CawgTrainingMiningEntry.fromJson(e as Map<String, dynamic>),
           )
           .toList(),
       metadata: data['metadata'] != null
@@ -1978,8 +1977,9 @@ class ManifestDefinition {
     }
 
     if (gatheredAssertions.isNotEmpty) {
-      map['gathered_assertions'] =
-          gatheredAssertions.map((a) => a.toJson()).toList();
+      map['gathered_assertions'] = gatheredAssertions
+          .map((a) => a.toJson())
+          .toList();
     }
 
     if (ingredients.isNotEmpty) {

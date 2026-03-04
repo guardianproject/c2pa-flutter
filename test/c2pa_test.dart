@@ -266,7 +266,10 @@ void main() {
     test('createBuilder with ManifestDefinition.created', () async {
       final manifest = ManifestDefinition.created(
         title: 'Digital Photo',
-        claimGenerator: const ClaimGeneratorInfo(name: 'TestApp', version: '1.0.0'),
+        claimGenerator: const ClaimGeneratorInfo(
+          name: 'TestApp',
+          version: '1.0.0',
+        ),
         sourceType: DigitalSourceType.digitalCapture,
       );
 
@@ -283,7 +286,10 @@ void main() {
     test('createBuilder with ManifestDefinition.edited', () async {
       final manifest = ManifestDefinition.edited(
         title: 'Edited Photo',
-        claimGenerator: const ClaimGeneratorInfo(name: 'PhotoEditor', version: '2.0'),
+        claimGenerator: const ClaimGeneratorInfo(
+          name: 'PhotoEditor',
+          version: '2.0',
+        ),
         actions: [
           Action.cropped(softwareAgent: 'PhotoEditor/2.0'),
           Action.filtered(
@@ -829,31 +835,30 @@ void main() {
   });
 
   group('SettingsSigner', () {
-    test('toMap serializes with type settings, settings string, and format', () {
-      final signer = SettingsSigner(
-        settingsString: '{"signer": "config"}',
-        format: 'json',
-      );
+    test(
+      'toMap serializes with type settings, settings string, and format',
+      () {
+        final signer = SettingsSigner(
+          settingsString: '{"signer": "config"}',
+          format: 'json',
+        );
 
-      final map = signer.toMap();
-      expect(map['type'], 'settings');
-      expect(map['settings'], '{"signer": "config"}');
-      expect(map['format'], 'json');
-    });
+        final map = signer.toMap();
+        expect(map['type'], 'settings');
+        expect(map['settings'], '{"signer": "config"}');
+        expect(map['format'], 'json');
+      },
+    );
 
     test('default format is json', () {
-      final signer = SettingsSigner(
-        settingsString: '{"signer": "config"}',
-      );
+      final signer = SettingsSigner(settingsString: '{"signer": "config"}');
 
       expect(signer.format, 'json');
       expect(signer.toMap()['format'], 'json');
     });
 
     test('algorithm returns es256', () {
-      final signer = SettingsSigner(
-        settingsString: '{"signer": "config"}',
-      );
+      final signer = SettingsSigner(settingsString: '{"signer": "config"}');
 
       expect(signer.algorithm, SigningAlgorithm.es256);
     });
@@ -892,14 +897,8 @@ void main() {
       final settings = await C2paSettings.create();
       settings.dispose();
 
-      expect(
-        () => settings.updateFromString('{}', 'json'),
-        throwsStateError,
-      );
-      expect(
-        () => settings.setValue('key', 'value'),
-        throwsStateError,
-      );
+      expect(() => settings.updateFromString('{}', 'json'), throwsStateError);
+      expect(() => settings.setValue('key', 'value'), throwsStateError);
     });
   });
 
@@ -910,15 +909,18 @@ void main() {
       expect(mockPlatform.methodCalls.last.method, 'createContext');
     });
 
-    test('fromSettings() creates context from settings handle and records settingsHandle', () async {
-      final settings = await C2paSettings.create();
-      final context = await C2paContext.fromSettings(settings);
+    test(
+      'fromSettings() creates context from settings handle and records settingsHandle',
+      () async {
+        final settings = await C2paSettings.create();
+        final context = await C2paContext.fromSettings(settings);
 
-      expect(context.handle, greaterThan(0));
-      final call = mockPlatform.methodCalls.last;
-      expect(call.method, 'createContextFromSettings');
-      expect(call.arguments!['settingsHandle'], settings.handle);
-    });
+        expect(context.handle, greaterThan(0));
+        final call = mockPlatform.methodCalls.last;
+        expect(call.method, 'createContextFromSettings');
+        expect(call.arguments!['settingsHandle'], settings.handle);
+      },
+    );
 
     test('dispose() prevents further operations', () async {
       final context = await C2paContext.create();
@@ -984,37 +986,43 @@ void main() {
   });
 
   group('Enhanced Reader API', () {
-    test('readManifestFromFileWithContext calls readFileWithContext with correct args', () async {
-      final context = await C2paContext.create();
-      final result = await c2pa.readManifestFromFileWithContext(
-        '/path/to/image.jpg',
-        context,
-        options: const ReaderOptions(detailed: true, dataDir: '/tmp/data'),
-      );
-
-      expect(result, isNotNull);
-      expect(result!.activeManifest, isNotNull);
-
-      final call = mockPlatform.methodCalls.last;
-      expect(call.method, 'readFileWithContext');
-      expect(call.arguments!['path'], '/path/to/image.jpg');
-      expect(call.arguments!['contextHandle'], context.handle);
-      expect(call.arguments!['detailed'], true);
-      expect(call.arguments!['dataDir'], '/tmp/data');
-    });
-
-    test('readManifestFromFileWithContext on disposed context throws StateError', () async {
-      final context = await C2paContext.create();
-      context.dispose();
-
-      expect(
-        () async => await c2pa.readManifestFromFileWithContext(
+    test(
+      'readManifestFromFileWithContext calls readFileWithContext with correct args',
+      () async {
+        final context = await C2paContext.create();
+        final result = await c2pa.readManifestFromFileWithContext(
           '/path/to/image.jpg',
           context,
-        ),
-        throwsStateError,
-      );
-    });
+          options: const ReaderOptions(detailed: true, dataDir: '/tmp/data'),
+        );
+
+        expect(result, isNotNull);
+        expect(result!.activeManifest, isNotNull);
+
+        final call = mockPlatform.methodCalls.last;
+        expect(call.method, 'readFileWithContext');
+        expect(call.arguments!['path'], '/path/to/image.jpg');
+        expect(call.arguments!['contextHandle'], context.handle);
+        expect(call.arguments!['detailed'], true);
+        expect(call.arguments!['dataDir'], '/tmp/data');
+      },
+    );
+
+    test(
+      'readManifestFromFileWithContext on disposed context throws StateError',
+      () async {
+        final context = await C2paContext.create();
+        context.dispose();
+
+        expect(
+          () async => await c2pa.readManifestFromFileWithContext(
+            '/path/to/image.jpg',
+            context,
+          ),
+          throwsStateError,
+        );
+      },
+    );
   });
 
   group('Enhanced Builder API', () {
@@ -1050,29 +1058,35 @@ void main() {
       expect(call.arguments!['settingsHandle'], settings.handle);
     });
 
-    test('createBuilderWithSettings on disposed settings throws StateError', () async {
-      final settings = await C2paSettings.create();
-      settings.dispose();
+    test(
+      'createBuilderWithSettings on disposed settings throws StateError',
+      () async {
+        final settings = await C2paSettings.create();
+        settings.dispose();
 
-      expect(
-        () async => await c2pa.createBuilderWithSettings(
-          '{"title": "Test"}',
-          settings,
-        ),
-        throwsStateError,
-      );
-    });
+        expect(
+          () async => await c2pa.createBuilderWithSettings(
+            '{"title": "Test"}',
+            settings,
+          ),
+          throwsStateError,
+        );
+      },
+    );
   });
 
   group('Certificate Manager API', () {
-    test('createSelfSignedCertificateChain returns PEM certificate chain', () async {
-      final chain = await c2pa.createSelfSignedCertificateChain(
-        keyAlias: 'test-key',
-      );
+    test(
+      'createSelfSignedCertificateChain returns PEM certificate chain',
+      () async {
+        final chain = await c2pa.createSelfSignedCertificateChain(
+          keyAlias: 'test-key',
+        );
 
-      expect(chain, contains('-----BEGIN CERTIFICATE-----'));
-      expect(chain, contains('-----END CERTIFICATE-----'));
-    });
+        expect(chain, contains('-----BEGIN CERTIFICATE-----'));
+        expect(chain, contains('-----END CERTIFICATE-----'));
+      },
+    );
 
     test('createSelfSignedCertificateChain passes config correctly', () async {
       const config = CertificateConfig(

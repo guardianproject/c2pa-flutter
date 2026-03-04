@@ -619,8 +619,9 @@ void main() {
     });
 
     test('fromCode with valid failure code returns correct enum', () {
-      final result =
-          ValidationStatusCode.fromCode('assertion.dataHash.mismatch');
+      final result = ValidationStatusCode.fromCode(
+        'assertion.dataHash.mismatch',
+      );
       expect(result, ValidationStatusCode.assertionDataHashMismatch);
     });
 
@@ -652,9 +653,7 @@ void main() {
     });
 
     test('toJson includes label and data', () {
-      final assertion = CawgIdentityAssertion(
-        data: {'signer': 'test-signer'},
-      );
+      final assertion = CawgIdentityAssertion(data: {'signer': 'test-signer'});
 
       final json = assertion.toJson();
       expect(json['label'], 'cawg.identity');
@@ -719,7 +718,10 @@ void main() {
 
       expect(decoded.entries.length, 1);
       expect(decoded.entries.first.use, 'aiTraining');
-      expect(decoded.entries.first.permission, TrainingMiningPermission.allowed);
+      expect(
+        decoded.entries.first.permission,
+        TrainingMiningPermission.allowed,
+      );
       expect(decoded.entries.first.aiModelLearningType, 'supervised');
       expect(decoded.entries.first.aiMiningType, 'text');
     });
@@ -745,19 +747,21 @@ void main() {
       expect(entry.permission, TrainingMiningPermission.allowed);
     });
 
-    test('extra fields aiModelLearningType and aiMiningType are serialized',
-        () {
-      final entry = CawgTrainingMiningEntry(
-        use: 'aiTraining',
-        permission: TrainingMiningPermission.constrained,
-        aiModelLearningType: 'reinforcement',
-        aiMiningType: 'image',
-      );
+    test(
+      'extra fields aiModelLearningType and aiMiningType are serialized',
+      () {
+        final entry = CawgTrainingMiningEntry(
+          use: 'aiTraining',
+          permission: TrainingMiningPermission.constrained,
+          aiModelLearningType: 'reinforcement',
+          aiMiningType: 'image',
+        );
 
-      final json = entry.toJson();
-      expect(json['ai_model_learning_type'], 'reinforcement');
-      expect(json['ai_mining_type'], 'image');
-    });
+        final json = entry.toJson();
+        expect(json['ai_model_learning_type'], 'reinforcement');
+        expect(json['ai_mining_type'], 'image');
+      },
+    );
   });
 
   group('AssertionDefinition.fromJson CAWG labels', () {
@@ -769,31 +773,26 @@ void main() {
 
       final assertion = AssertionDefinition.fromJson(json);
       expect(assertion, isA<CawgIdentityAssertion>());
-      expect(
-        (assertion as CawgIdentityAssertion).data['signer'],
-        'test',
-      );
+      expect((assertion as CawgIdentityAssertion).data['signer'], 'test');
     });
 
     test(
-        'parses cawg.ai_training_and_data_mining label to CawgTrainingMiningAssertion',
-        () {
-      final json = {
-        'label': 'cawg.ai_training_and_data_mining',
-        'data': {
-          'entries': [
-            {'use': 'aiTraining', 'notAllowed': true},
-          ],
-        },
-      };
+      'parses cawg.ai_training_and_data_mining label to CawgTrainingMiningAssertion',
+      () {
+        final json = {
+          'label': 'cawg.ai_training_and_data_mining',
+          'data': {
+            'entries': [
+              {'use': 'aiTraining', 'notAllowed': true},
+            ],
+          },
+        };
 
-      final assertion = AssertionDefinition.fromJson(json);
-      expect(assertion, isA<CawgTrainingMiningAssertion>());
-      expect(
-        (assertion as CawgTrainingMiningAssertion).entries.length,
-        1,
-      );
-    });
+        final assertion = AssertionDefinition.fromJson(json);
+        expect(assertion, isA<CawgTrainingMiningAssertion>());
+        expect((assertion as CawgTrainingMiningAssertion).entries.length, 1);
+      },
+    );
 
     test('unknown label produces CustomAssertion', () {
       final json = {

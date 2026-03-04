@@ -779,15 +779,13 @@ class MethodChannelC2pa extends C2paPlatform {
     bool detailed,
     String? dataDir,
   ) async {
-    final result = await methodChannel.invokeMethod<String>(
-      'readFileWithContext',
-      {
-        'path': path,
-        'contextHandle': contextHandle,
-        'detailed': detailed,
-        'dataDir': dataDir,
-      },
-    );
+    final result = await methodChannel
+        .invokeMethod<String>('readFileWithContext', {
+          'path': path,
+          'contextHandle': contextHandle,
+          'detailed': detailed,
+          'dataDir': dataDir,
+        });
     return result;
   }
 
