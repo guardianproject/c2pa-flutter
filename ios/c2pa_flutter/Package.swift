@@ -11,7 +11,7 @@ let package = Package(
         .library(name: "c2pa-flutter", targets: ["c2pa_flutter"])
     ],
     dependencies: [
-        .package(url: "https://github.com/contentauth/c2pa-ios.git", from: "0.0.8")
+        .package(url: "https://github.com/redaranj/c2pa-ios.git", exact: "0.0.9-beta.7")
     ],
     targets: [
         .target(

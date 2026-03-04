@@ -181,7 +181,9 @@ enum StandardAssertionLabel {
   creativeWork('stds.schema-org.CreativeWork'),
   exif('stds.exif'),
   iptcPhotoMetadata('stds.iptc.photo-metadata'),
-  trainingMining('c2pa.training-mining');
+  trainingMining('c2pa.training-mining'),
+  cawgIdentity('cawg.identity'),
+  cawgTrainingMining('cawg.ai_training_and_data_mining');
 
   const StandardAssertionLabel(this.value);
   final String value;
@@ -828,6 +830,75 @@ class ValidationResults {
   }
 }
 
+/// C2PA validation status codes as defined in the specification
+enum ValidationStatusCode {
+  // Success codes
+  claimSignatureValidated('claimSignature.validated'),
+  signingCredentialTrusted('signingCredential.trusted'),
+  timestampTrusted('timeStamp.trusted'),
+  assertionDataHashMatch('assertion.dataHash.match'),
+  assertionBmffHashMatch('assertion.bmffHash.match'),
+  assertionBoxesHashMatch('assertion.boxesHash.match'),
+  assertionCollectionHashMatch('assertion.collectionHash.match'),
+  assertionHashedUriMatch('assertion.hashedURI.match'),
+  assertionIngredientMatch('assertion.ingredientMatch'),
+  assertionAccessible('assertion.accessible'),
+
+  // Failure codes
+  assertionDataHashMismatch('assertion.dataHash.mismatch'),
+  assertionBmffHashMismatch('assertion.bmffHash.mismatch'),
+  assertionBoxesHashMismatch('assertion.boxesHash.mismatch'),
+  assertionCollectionHashMismatch('assertion.collectionHash.mismatch'),
+  assertionHashedUriMismatch('assertion.hashedURI.mismatch'),
+  assertionMissing('assertion.missing'),
+  assertionMultipleHardBindings('assertion.multipleHardBindings'),
+  assertionUndeclaredHashedUri('assertion.undeclaredHashedURI'),
+  assertionRequiredMissing('assertion.requiredMissing'),
+  assertionInaccessible('assertion.inaccessible'),
+  assertionCloudDataHardBinding('assertion.cloudData.hardBinding'),
+  assertionCloudDataActions('assertion.cloudData.actions'),
+  assertionCloudDataMismatch('assertion.cloudData.mismatch'),
+  assertionJsonInvalid('assertion.json.invalid'),
+  assertionCborInvalid('assertion.cbor.invalid'),
+  assertionActionIngredientMismatch('assertion.action.ingredientMismatch'),
+  assertionActionMissing('assertion.action.missing'),
+  assertionActionRedactionMissing('assertion.action.redactionMissing'),
+  assertionSelfRedacted('assertion.selfRedacted'),
+  assertionRedactedUriMismatch('assertion.redactedUriMismatch'),
+  assertionNotRedactable('assertion.notRedactable'),
+  claimMissing('claim.missing'),
+  claimMultiple('claim.multiple'),
+  claimHardBindingsMissing('claim.hardBindings.missing'),
+  claimRequiredMissing('claim.required.missing'),
+  claimCborInvalid('claim.cbor.invalid'),
+  claimSignatureMismatch('claimSignature.mismatch'),
+  claimSignatureMissing('claimSignature.missing'),
+  manifestMissing('manifest.missing'),
+  manifestMultipleParents('manifest.multipleParents'),
+  manifestUpdateWrongParents('manifest.updateWrongParents'),
+  manifestInaccessible('manifest.inaccessible'),
+  ingredientHashedUriMismatch('ingredient.hashedURI.mismatch'),
+  signingCredentialUntrusted('signingCredential.untrusted'),
+  signingCredentialInvalid('signingCredential.invalid'),
+  signingCredentialRevoked('signingCredential.revoked'),
+  signingCredentialExpired('signingCredential.expired'),
+  timestampMismatch('timeStamp.mismatch'),
+  timestampUntrusted('timeStamp.untrusted'),
+  timestampOutsideValidity('timeStamp.outsideValidity'),
+  algorithmUnsupported('algorithm.unsupported'),
+  generalError('general.error');
+
+  const ValidationStatusCode(this.code);
+  final String code;
+
+  static ValidationStatusCode? fromCode(String code) {
+    return ValidationStatusCode.values.cast<ValidationStatusCode?>().firstWhere(
+      (e) => e?.code == code,
+      orElse: () => null,
+    );
+  }
+}
+
 /// Assertion metadata
 class Metadata {
   final DateTime? dateTime;
@@ -1378,6 +1449,10 @@ sealed class AssertionDefinition {
       return IptcPhotoMetadataAssertion.fromData(data);
     } else if (label == StandardAssertionLabel.trainingMining.value) {
       return TrainingMiningAssertion.fromData(data);
+    } else if (label == StandardAssertionLabel.cawgIdentity.value) {
+      return CawgIdentityAssertion.fromData(data);
+    } else if (label == StandardAssertionLabel.cawgTrainingMining.value) {
+      return CawgTrainingMiningAssertion.fromData(data);
     } else {
       return CustomAssertion(label: label, data: data);
     }
@@ -1558,6 +1633,108 @@ class CustomAssertion extends AssertionDefinition {
   Map<String, dynamic> toJson() => {'label': label, 'data': data};
 }
 
+/// CAWG identity assertion
+///
+/// Per the CAWG specification, identity assertions MUST be placed in
+/// [ManifestDefinition.gatheredAssertions], not in [ManifestDefinition.assertions].
+class CawgIdentityAssertion extends AssertionDefinition {
+  @override
+  String get label => StandardAssertionLabel.cawgIdentity.value;
+
+  final Map<String, dynamic> data;
+
+  CawgIdentityAssertion({required this.data});
+
+  @override
+  Map<String, dynamic> toJson() => {'label': label, 'data': data};
+
+  factory CawgIdentityAssertion.fromData(Map<String, dynamic> data) {
+    return CawgIdentityAssertion(data: data);
+  }
+}
+
+/// CAWG AI training and data mining assertion
+class CawgTrainingMiningAssertion extends AssertionDefinition {
+  @override
+  String get label => StandardAssertionLabel.cawgTrainingMining.value;
+
+  final List<CawgTrainingMiningEntry> entries;
+  final Metadata? metadata;
+
+  CawgTrainingMiningAssertion({required this.entries, this.metadata});
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'label': label,
+      'data': {
+        'entries': entries.map((e) => e.toJson()).toList(),
+        if (metadata != null) 'metadata': metadata!.toJson(),
+      },
+    };
+  }
+
+  factory CawgTrainingMiningAssertion.fromData(Map<String, dynamic> data) {
+    return CawgTrainingMiningAssertion(
+      entries: (data['entries'] as List<dynamic>)
+          .map(
+            (e) =>
+                CawgTrainingMiningEntry.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(),
+      metadata: data['metadata'] != null
+          ? Metadata.fromJson(data['metadata'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+/// Entry for CAWG AI training and data mining permissions
+class CawgTrainingMiningEntry {
+  final String use;
+  final TrainingMiningPermission permission;
+  final String? constraintInfo;
+  final String? aiModelLearningType;
+  final String? aiMiningType;
+
+  const CawgTrainingMiningEntry({
+    required this.use,
+    required this.permission,
+    this.constraintInfo,
+    this.aiModelLearningType,
+    this.aiMiningType,
+  });
+
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{'use': use, permission.value: true};
+    if (constraintInfo != null) map['constraint_info'] = constraintInfo;
+    if (aiModelLearningType != null) {
+      map['ai_model_learning_type'] = aiModelLearningType;
+    }
+    if (aiMiningType != null) map['ai_mining_type'] = aiMiningType;
+    return map;
+  }
+
+  factory CawgTrainingMiningEntry.fromJson(Map<String, dynamic> json) {
+    TrainingMiningPermission permission;
+    if (json['allowed'] == true) {
+      permission = TrainingMiningPermission.allowed;
+    } else if (json['constrained'] == true) {
+      permission = TrainingMiningPermission.constrained;
+    } else {
+      permission = TrainingMiningPermission.notAllowed;
+    }
+
+    return CawgTrainingMiningEntry(
+      use: json['use'] as String,
+      permission: permission,
+      constraintInfo: json['constraint_info'] as String?,
+      aiModelLearningType: json['ai_model_learning_type'] as String?,
+      aiMiningType: json['ai_mining_type'] as String?,
+    );
+  }
+}
+
 // =============================================================================
 // Manifest Definition
 // =============================================================================
@@ -1567,6 +1744,7 @@ class ManifestDefinition {
   final String title;
   final List<ClaimGeneratorInfo> claimGeneratorInfo;
   final List<AssertionDefinition> assertions;
+  final List<AssertionDefinition> gatheredAssertions;
   final List<Ingredient> ingredients;
   final ResourceRef? thumbnail;
   final String? format;
@@ -1580,6 +1758,7 @@ class ManifestDefinition {
     required this.title,
     required this.claimGeneratorInfo,
     this.assertions = const [],
+    this.gatheredAssertions = const [],
     this.ingredients = const [],
     this.thumbnail,
     this.format,
@@ -1587,7 +1766,7 @@ class ManifestDefinition {
     this.label,
     this.instanceId,
     this.redactions,
-    this.claimVersion = 1,
+    this.claimVersion = 2,
   });
 
   /// Create a manifest for new content creation
@@ -1671,6 +1850,40 @@ class ManifestDefinition {
     );
   }
 
+  /// Create a manifest with explicit created and gathered assertion separation
+  factory ManifestDefinition.withAssertions({
+    required String title,
+    required ClaimGeneratorInfo claimGenerator,
+    List<AssertionDefinition> createdAssertions = const [],
+    List<AssertionDefinition> gatheredAssertions = const [],
+    List<Ingredient> ingredients = const [],
+  }) {
+    return ManifestDefinition(
+      title: title,
+      claimGeneratorInfo: [claimGenerator],
+      assertions: createdAssertions,
+      gatheredAssertions: gatheredAssertions,
+      ingredients: ingredients,
+    );
+  }
+
+  /// Create a manifest with CAWG identity assertions in gathered assertions
+  factory ManifestDefinition.withCawgIdentity({
+    required String title,
+    required ClaimGeneratorInfo claimGenerator,
+    required List<AssertionDefinition> identityAssertions,
+    List<AssertionDefinition>? createdAssertions,
+    List<Ingredient> ingredients = const [],
+  }) {
+    return ManifestDefinition(
+      title: title,
+      claimGeneratorInfo: [claimGenerator],
+      assertions: createdAssertions ?? const [],
+      gatheredAssertions: identityAssertions,
+      ingredients: ingredients,
+    );
+  }
+
   /// Convert to JSON string for the platform API
   String toJsonString() => jsonEncode(toJson());
 
@@ -1691,6 +1904,11 @@ class ManifestDefinition {
       map['assertions'] = assertions.map((a) => a.toJson()).toList();
     }
 
+    if (gatheredAssertions.isNotEmpty) {
+      map['gathered_assertions'] =
+          gatheredAssertions.map((a) => a.toJson()).toList();
+    }
+
     if (ingredients.isNotEmpty) {
       map['ingredients'] = ingredients.map((i) => i.toJson()).toList();
     }
@@ -1701,7 +1919,7 @@ class ManifestDefinition {
     if (label != null) map['label'] = label;
     if (instanceId != null) map['instance_id'] = instanceId;
     if (redactions != null) map['redactions'] = redactions;
-    if (claimVersion != 1) map['claim_version'] = claimVersion;
+    if (claimVersion != 2) map['claim_version'] = claimVersion;
 
     return map;
   }
@@ -1727,6 +1945,13 @@ class ManifestDefinition {
               )
               .toList() ??
           [],
+      gatheredAssertions:
+          (map['gathered_assertions'] as List<dynamic>?)
+              ?.map(
+                (a) => AssertionDefinition.fromJson(a as Map<String, dynamic>),
+              )
+              .toList() ??
+          [],
       ingredients:
           (map['ingredients'] as List<dynamic>?)
               ?.map((i) => Ingredient.fromJson(i as Map<String, dynamic>))
@@ -1742,7 +1967,7 @@ class ManifestDefinition {
       redactions: (map['redactions'] as List<dynamic>?)
           ?.cast<String>()
           .toList(),
-      claimVersion: map['claim_version'] as int? ?? 1,
+      claimVersion: map['claim_version'] as int? ?? 2,
     );
   }
 }

@@ -291,4 +291,98 @@ abstract class C2paPlatform extends PlatformInterface {
   Future<void> loadSettings(String settings, String format) {
     throw UnimplementedError('loadSettings() has not been implemented.');
   }
+
+  // ===========================================================================
+  // C2PASettings Handle API
+  // ===========================================================================
+
+  Future<int> createSettings() {
+    throw UnimplementedError('createSettings() has not been implemented.');
+  }
+
+  Future<void> settingsUpdateFromString(
+    int handle,
+    String settingsStr,
+    String format,
+  ) {
+    throw UnimplementedError(
+      'settingsUpdateFromString() has not been implemented.',
+    );
+  }
+
+  Future<void> settingsSetValue(int handle, String path, String value) {
+    throw UnimplementedError('settingsSetValue() has not been implemented.');
+  }
+
+  Future<void> settingsDispose(int handle) {
+    throw UnimplementedError('settingsDispose() has not been implemented.');
+  }
+
+  // ===========================================================================
+  // C2PAContext Handle API
+  // ===========================================================================
+
+  Future<int> createContext() {
+    throw UnimplementedError('createContext() has not been implemented.');
+  }
+
+  Future<int> createContextFromSettings(int settingsHandle) {
+    throw UnimplementedError(
+      'createContextFromSettings() has not been implemented.',
+    );
+  }
+
+  Future<void> contextDispose(int handle) {
+    throw UnimplementedError('contextDispose() has not been implemented.');
+  }
+
+  // ===========================================================================
+  // Enhanced Reader API
+  // ===========================================================================
+
+  Future<String?> readFileWithContext(
+    String path,
+    int contextHandle,
+    bool detailed,
+    String? dataDir,
+  ) {
+    throw UnimplementedError(
+      'readFileWithContext() has not been implemented.',
+    );
+  }
+
+  // ===========================================================================
+  // Enhanced Builder API
+  // ===========================================================================
+
+  Future<ManifestBuilder> createBuilderWithContext(
+    int contextHandle,
+    String manifestJson,
+  ) {
+    throw UnimplementedError(
+      'createBuilderWithContext() has not been implemented.',
+    );
+  }
+
+  Future<ManifestBuilder> createBuilderWithSettings(
+    String manifestJson,
+    int settingsHandle,
+  ) {
+    throw UnimplementedError(
+      'createBuilderWithSettings() has not been implemented.',
+    );
+  }
+
+  // ===========================================================================
+  // Certificate Manager API
+  // ===========================================================================
+
+  Future<String> createSelfSignedCertificateChain({
+    required String keyAlias,
+    Map<String, dynamic>? config,
+  }) {
+    throw UnimplementedError(
+      'createSelfSignedCertificateChain() has not been implemented.',
+    );
+  }
 }

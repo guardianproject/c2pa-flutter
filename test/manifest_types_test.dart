@@ -599,4 +599,355 @@ void main() {
       expect(decoded.dataSource?.type, 'localProvider');
     });
   });
+
+  group('ValidationStatusCode', () {
+    test('fromCode with valid success code returns correct enum', () {
+      final result = ValidationStatusCode.fromCode('claimSignature.validated');
+      expect(result, ValidationStatusCode.claimSignatureValidated);
+    });
+
+    test('fromCode with valid failure code returns correct enum', () {
+      final result =
+          ValidationStatusCode.fromCode('assertion.dataHash.mismatch');
+      expect(result, ValidationStatusCode.assertionDataHashMismatch);
+    });
+
+    test('fromCode with unknown code returns null', () {
+      final result = ValidationStatusCode.fromCode('unknown.code.here');
+      expect(result, isNull);
+    });
+
+    test('all codes have non-empty string values', () {
+      for (final code in ValidationStatusCode.values) {
+        expect(code.code, isNotEmpty);
+      }
+    });
+
+    test('code property matches expected string', () {
+      expect(
+        ValidationStatusCode.claimSignatureValidated.code,
+        'claimSignature.validated',
+      );
+      expect(ValidationStatusCode.generalError.code, 'general.error');
+      expect(ValidationStatusCode.timestampTrusted.code, 'timeStamp.trusted');
+    });
+  });
+
+  group('CawgIdentityAssertion', () {
+    test('has correct label', () {
+      final assertion = CawgIdentityAssertion(data: {'key': 'value'});
+      expect(assertion.label, 'cawg.identity');
+    });
+
+    test('toJson includes label and data', () {
+      final assertion = CawgIdentityAssertion(
+        data: {'signer': 'test-signer'},
+      );
+
+      final json = assertion.toJson();
+      expect(json['label'], 'cawg.identity');
+      expect((json['data'] as Map)['signer'], 'test-signer');
+    });
+
+    test('fromData round-trip works', () {
+      final original = CawgIdentityAssertion(
+        data: {'signer': 'test-signer', 'method': 'x509'},
+      );
+
+      final json = original.toJson();
+      final decoded = CawgIdentityAssertion.fromData(
+        json['data'] as Map<String, dynamic>,
+      );
+
+      expect(decoded.label, 'cawg.identity');
+      expect(decoded.data['signer'], 'test-signer');
+      expect(decoded.data['method'], 'x509');
+    });
+  });
+
+  group('CawgTrainingMiningAssertion', () {
+    test('has correct label', () {
+      final assertion = CawgTrainingMiningAssertion(entries: []);
+      expect(assertion.label, 'cawg.ai_training_and_data_mining');
+    });
+
+    test('toJson serializes entries correctly', () {
+      final assertion = CawgTrainingMiningAssertion(
+        entries: [
+          CawgTrainingMiningEntry(
+            use: 'aiTraining',
+            permission: TrainingMiningPermission.notAllowed,
+          ),
+        ],
+      );
+
+      final json = assertion.toJson();
+      expect(json['label'], 'cawg.ai_training_and_data_mining');
+      final entries = (json['data'] as Map)['entries'] as List;
+      expect(entries.length, 1);
+      expect((entries.first as Map)['use'], 'aiTraining');
+    });
+
+    test('fromData round-trip works with entries containing extra fields', () {
+      final original = CawgTrainingMiningAssertion(
+        entries: [
+          CawgTrainingMiningEntry(
+            use: 'aiTraining',
+            permission: TrainingMiningPermission.allowed,
+            aiModelLearningType: 'supervised',
+            aiMiningType: 'text',
+          ),
+        ],
+      );
+
+      final json = original.toJson();
+      final decoded = CawgTrainingMiningAssertion.fromData(
+        json['data'] as Map<String, dynamic>,
+      );
+
+      expect(decoded.entries.length, 1);
+      expect(decoded.entries.first.use, 'aiTraining');
+      expect(decoded.entries.first.permission, TrainingMiningPermission.allowed);
+      expect(decoded.entries.first.aiModelLearningType, 'supervised');
+      expect(decoded.entries.first.aiMiningType, 'text');
+    });
+  });
+
+  group('CawgTrainingMiningEntry', () {
+    test('toJson serializes permission correctly', () {
+      final entry = CawgTrainingMiningEntry(
+        use: 'aiTraining',
+        permission: TrainingMiningPermission.allowed,
+      );
+
+      final json = entry.toJson();
+      expect(json['use'], 'aiTraining');
+      expect(json['allowed'], true);
+    });
+
+    test('fromJson parses allowed permission', () {
+      final json = {'use': 'dataMining', 'allowed': true};
+      final entry = CawgTrainingMiningEntry.fromJson(json);
+
+      expect(entry.use, 'dataMining');
+      expect(entry.permission, TrainingMiningPermission.allowed);
+    });
+
+    test('extra fields aiModelLearningType and aiMiningType are serialized',
+        () {
+      final entry = CawgTrainingMiningEntry(
+        use: 'aiTraining',
+        permission: TrainingMiningPermission.constrained,
+        aiModelLearningType: 'reinforcement',
+        aiMiningType: 'image',
+      );
+
+      final json = entry.toJson();
+      expect(json['ai_model_learning_type'], 'reinforcement');
+      expect(json['ai_mining_type'], 'image');
+    });
+  });
+
+  group('AssertionDefinition.fromJson CAWG labels', () {
+    test('parses cawg.identity label to CawgIdentityAssertion', () {
+      final json = {
+        'label': 'cawg.identity',
+        'data': {'signer': 'test'},
+      };
+
+      final assertion = AssertionDefinition.fromJson(json);
+      expect(assertion, isA<CawgIdentityAssertion>());
+      expect(
+        (assertion as CawgIdentityAssertion).data['signer'],
+        'test',
+      );
+    });
+
+    test(
+        'parses cawg.ai_training_and_data_mining label to CawgTrainingMiningAssertion',
+        () {
+      final json = {
+        'label': 'cawg.ai_training_and_data_mining',
+        'data': {
+          'entries': [
+            {'use': 'aiTraining', 'notAllowed': true},
+          ],
+        },
+      };
+
+      final assertion = AssertionDefinition.fromJson(json);
+      expect(assertion, isA<CawgTrainingMiningAssertion>());
+      expect(
+        (assertion as CawgTrainingMiningAssertion).entries.length,
+        1,
+      );
+    });
+
+    test('unknown label produces CustomAssertion', () {
+      final json = {
+        'label': 'com.example.unknown',
+        'data': {'foo': 'bar'},
+      };
+
+      final assertion = AssertionDefinition.fromJson(json);
+      expect(assertion, isA<CustomAssertion>());
+      expect((assertion as CustomAssertion).label, 'com.example.unknown');
+    });
+  });
+
+  group('ManifestDefinition - gathered assertions', () {
+    test('default gatheredAssertions is empty list', () {
+      final manifest = ManifestDefinition(
+        title: 'Test',
+        claimGeneratorInfo: [ClaimGeneratorInfo(name: 'App', version: '1.0')],
+      );
+
+      expect(manifest.gatheredAssertions, isEmpty);
+    });
+
+    test('default claimVersion is 2', () {
+      final manifest = ManifestDefinition(
+        title: 'Test',
+        claimGeneratorInfo: [ClaimGeneratorInfo(name: 'App', version: '1.0')],
+      );
+
+      expect(manifest.claimVersion, 2);
+    });
+
+    test('toJson includes gathered_assertions when non-empty', () {
+      final manifest = ManifestDefinition(
+        title: 'Test',
+        claimGeneratorInfo: [ClaimGeneratorInfo(name: 'App', version: '1.0')],
+        gatheredAssertions: [
+          CawgIdentityAssertion(data: {'signer': 'test'}),
+        ],
+      );
+
+      final json = manifest.toJson();
+      expect(json.containsKey('gathered_assertions'), true);
+      expect((json['gathered_assertions'] as List).length, 1);
+    });
+
+    test('toJson omits claim_version when it is 2', () {
+      final manifest = ManifestDefinition(
+        title: 'Test',
+        claimGeneratorInfo: [ClaimGeneratorInfo(name: 'App', version: '1.0')],
+      );
+
+      final json = manifest.toJson();
+      expect(json.containsKey('claim_version'), false);
+    });
+
+    test('toJson includes claim_version when non-default', () {
+      final manifest = ManifestDefinition(
+        title: 'Test',
+        claimGeneratorInfo: [ClaimGeneratorInfo(name: 'App', version: '1.0')],
+        claimVersion: 1,
+      );
+
+      final json = manifest.toJson();
+      expect(json['claim_version'], 1);
+    });
+
+    test('fromJson round-trip preserves gatheredAssertions', () {
+      final original = ManifestDefinition(
+        title: 'Test',
+        claimGeneratorInfo: [ClaimGeneratorInfo(name: 'App', version: '1.0')],
+        gatheredAssertions: [
+          CawgIdentityAssertion(data: {'signer': 'test'}),
+        ],
+      );
+
+      final jsonStr = original.toJsonString();
+      final decoded = ManifestDefinition.fromJson(jsonStr);
+
+      expect(decoded.gatheredAssertions.length, 1);
+      expect(decoded.gatheredAssertions.first, isA<CawgIdentityAssertion>());
+    });
+  });
+
+  group('ManifestDefinition.withAssertions', () {
+    test('separates created and gathered assertions correctly', () {
+      final manifest = ManifestDefinition.withAssertions(
+        title: 'Test',
+        claimGenerator: ClaimGeneratorInfo(name: 'App', version: '1.0'),
+        createdAssertions: [
+          ActionsAssertion(actions: [Action.created()]),
+        ],
+        gatheredAssertions: [
+          CawgIdentityAssertion(data: {'signer': 'test'}),
+        ],
+      );
+
+      expect(manifest.assertions.length, 1);
+      expect(manifest.assertions.first, isA<ActionsAssertion>());
+      expect(manifest.gatheredAssertions.length, 1);
+      expect(manifest.gatheredAssertions.first, isA<CawgIdentityAssertion>());
+    });
+
+    test('factory properly assigns both lists', () {
+      final created = [
+        ActionsAssertion(actions: [Action.created()]),
+        CreativeWorkAssertion(author: 'Author'),
+      ];
+      final gathered = [
+        CawgIdentityAssertion(data: {'method': 'x509'}),
+      ];
+
+      final manifest = ManifestDefinition.withAssertions(
+        title: 'Test',
+        claimGenerator: ClaimGeneratorInfo(name: 'App', version: '1.0'),
+        createdAssertions: created,
+        gatheredAssertions: gathered,
+      );
+
+      expect(manifest.assertions.length, 2);
+      expect(manifest.gatheredAssertions.length, 1);
+    });
+  });
+
+  group('ManifestDefinition.withCawgIdentity', () {
+    test('places identity assertions in gatheredAssertions', () {
+      final manifest = ManifestDefinition.withCawgIdentity(
+        title: 'Test',
+        claimGenerator: ClaimGeneratorInfo(name: 'App', version: '1.0'),
+        identityAssertions: [
+          CawgIdentityAssertion(data: {'signer': 'test'}),
+        ],
+      );
+
+      expect(manifest.gatheredAssertions.length, 1);
+      expect(manifest.gatheredAssertions.first, isA<CawgIdentityAssertion>());
+    });
+
+    test('created assertions are set from parameter', () {
+      final manifest = ManifestDefinition.withCawgIdentity(
+        title: 'Test',
+        claimGenerator: ClaimGeneratorInfo(name: 'App', version: '1.0'),
+        identityAssertions: [
+          CawgIdentityAssertion(data: {'signer': 'test'}),
+        ],
+        createdAssertions: [
+          ActionsAssertion(actions: [Action.created()]),
+        ],
+      );
+
+      expect(manifest.assertions.length, 1);
+      expect(manifest.assertions.first, isA<ActionsAssertion>());
+      expect(manifest.gatheredAssertions.length, 1);
+    });
+  });
+
+  group('StandardAssertionLabel', () {
+    test('cawgIdentity has value cawg.identity', () {
+      expect(StandardAssertionLabel.cawgIdentity.value, 'cawg.identity');
+    });
+
+    test('cawgTrainingMining has value cawg.ai_training_and_data_mining', () {
+      expect(
+        StandardAssertionLabel.cawgTrainingMining.value,
+        'cawg.ai_training_and_data_mining',
+      );
+    });
+  });
 }

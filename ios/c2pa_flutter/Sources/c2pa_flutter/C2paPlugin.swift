@@ -2,10 +2,27 @@ import Flutter
 import UIKit
 import C2PA
 
+/// Stored settings entry for the handle-based settings API.
+/// Since the c2pa-ios library uses a global settings load rather than an
+/// object, we store the accumulated settings strings so they can be
+/// re-applied (merged) when creating signers or contexts.
+private struct SettingsEntry {
+    var segments: [(settings: String, format: String)]
+}
+
 public class C2paPlugin: NSObject, FlutterPlugin {
     private var builders: [Int: Builder] = [:]
     private var nextBuilderHandle: Int = 1
     private let builderLock = NSLock()
+
+    private var settingsMap: [Int: SettingsEntry] = [:]
+    private var nextSettingsHandle: Int = 1
+    private let settingsLock = NSLock()
+
+    // Contexts wrap a settings handle reference on iOS
+    private var contexts: [Int: Int] = [:]  // contextHandle -> settingsHandle
+    private var nextContextHandle: Int = 1
+    private let contextLock = NSLock()
 
     private var methodChannel: FlutterMethodChannel?
 
@@ -82,6 +99,33 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             handleKeyExists(call: call, result: result)
         case "exportPublicKey":
             handleExportPublicKey(call: call, result: result)
+        // Settings Handle API
+        case "createSettings":
+            handleCreateSettings(result: result)
+        case "settingsUpdateFromString":
+            handleSettingsUpdateFromString(call: call, result: result)
+        case "settingsSetValue":
+            handleSettingsSetValue(call: call, result: result)
+        case "settingsDispose":
+            handleSettingsDispose(call: call, result: result)
+        // Context Handle API
+        case "createContext":
+            handleCreateContext(result: result)
+        case "createContextFromSettings":
+            handleCreateContextFromSettings(call: call, result: result)
+        case "contextDispose":
+            handleContextDispose(call: call, result: result)
+        // Enhanced Reader
+        case "readFileWithContext":
+            handleReadFileWithContext(call: call, result: result)
+        // Enhanced Builder
+        case "createBuilderWithContext":
+            handleCreateBuilderWithContext(call: call, result: result)
+        case "createBuilderWithSettings":
+            handleCreateBuilderWithSettings(call: call, result: result)
+        // Certificate Manager
+        case "createSelfSignedCertificateChain":
+            handleCreateSelfSignedCertificateChain(call: call, result: result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -90,7 +134,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
     // MARK: - Version and Info
 
     private func handleGetVersion(result: @escaping FlutterResult) {
-        result(c2paVersion)
+        result(C2PA.version)
     }
 
     private func handleGetSupportedReadMimeTypes(result: @escaping FlutterResult) {
@@ -277,6 +321,10 @@ public class C2paPlugin: NSObject, FlutterPlugin {
                 let signer = try createCallbackSigner(signerMap)
                 completion(signer)
 
+            case "settings":
+                let signer = try createSettingsSigner(signerMap)
+                completion(signer)
+
             case "remote":
                 createRemoteSigner(signerMap) { signerResult in
                     switch signerResult {
@@ -431,6 +479,23 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             } catch {
                 completion(.failure(error))
             }
+        }
+    }
+
+    private func createSettingsSigner(_ signerMap: [String: Any]) throws -> Signer {
+        guard let settings = signerMap["settings"] as? String else {
+            throw C2PAError.api("Invalid settings signer configuration: settings string required")
+        }
+
+        let format = signerMap["format"] as? String ?? "json"
+
+        switch format.lowercased() {
+        case "json":
+            return try Signer(settingsJSON: settings)
+        case "toml":
+            return try Signer(settingsTOML: settings)
+        default:
+            throw C2PAError.api("Unsupported settings format: \(format). Use 'json' or 'toml'.")
         }
     }
 
@@ -907,6 +972,247 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         }
     }
 
+    // MARK: - Settings Handle API
+
+    private func handleCreateSettings(result: @escaping FlutterResult) {
+        let handle = storeSettings(SettingsEntry(segments: []))
+        result(handle)
+    }
+
+    private func handleSettingsUpdateFromString(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let handle = args["handle"] as? Int,
+              let settings = args["settings"] as? String,
+              let format = args["format"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "handle, settings, and format are required", details: nil))
+            return
+        }
+
+        guard format.lowercased() == "json" || format.lowercased() == "toml" else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "format must be 'json' or 'toml'", details: nil))
+            return
+        }
+
+        settingsLock.lock()
+        guard settingsMap[handle] != nil else {
+            settingsLock.unlock()
+            result(FlutterError(code: "INVALID_HANDLE", message: "Settings not found", details: nil))
+            return
+        }
+        settingsMap[handle]!.segments.append((settings: settings, format: format.lowercased()))
+        settingsLock.unlock()
+
+        // Also apply the settings globally so they take effect immediately
+        do {
+            try Signer.loadSettings(settings, format: format.lowercased())
+            result(nil)
+        } catch {
+            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
+    private func handleSettingsSetValue(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        // The c2pa-ios library does not expose a method to set individual
+        // settings values. Settings are loaded as complete JSON or TOML
+        // documents via Signer.loadSettings(). Individual key/value
+        // setting is not supported on iOS.
+        result(FlutterError(
+            code: "NOT_SUPPORTED",
+            message: "settingsSetValue is not supported on iOS. Use settingsUpdateFromString to load a complete settings document.",
+            details: nil
+        ))
+    }
+
+    private func handleSettingsDispose(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let handle = args["handle"] as? Int else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "handle is required", details: nil))
+            return
+        }
+
+        removeSettings(handle)
+        result(nil)
+    }
+
+    // MARK: - Context Handle API
+
+    private func handleCreateContext(result: @escaping FlutterResult) {
+        // Create an empty settings entry to back this context
+        let settingsHandle = storeSettings(SettingsEntry(segments: []))
+        let contextHandle = storeContext(settingsHandle: settingsHandle)
+        result(contextHandle)
+    }
+
+    private func handleCreateContextFromSettings(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let settingsHandle = args["settingsHandle"] as? Int else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "settingsHandle is required", details: nil))
+            return
+        }
+
+        settingsLock.lock()
+        let settingsExist = settingsMap[settingsHandle] != nil
+        settingsLock.unlock()
+
+        guard settingsExist else {
+            result(FlutterError(code: "INVALID_HANDLE", message: "Settings not found", details: nil))
+            return
+        }
+
+        let contextHandle = storeContext(settingsHandle: settingsHandle)
+        result(contextHandle)
+    }
+
+    private func handleContextDispose(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let handle = args["handle"] as? Int else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "handle is required", details: nil))
+            return
+        }
+
+        removeContext(handle)
+        result(nil)
+    }
+
+    // MARK: - Enhanced Reader
+
+    private func handleReadFileWithContext(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "path is required", details: nil))
+            return
+        }
+
+        let contextHandle = args["contextHandle"] as? Int
+        let detailed = args["detailed"] as? Bool ?? false
+        let dataDirPath = args["dataDir"] as? String
+        let dataDir = dataDirPath.map { URL(fileURLWithPath: $0) }
+
+        // Apply settings from context if provided
+        if let contextHandle = contextHandle {
+            do {
+                try applyContextSettings(contextHandle)
+            } catch {
+                result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+                return
+            }
+        }
+
+        do {
+            if detailed {
+                // Use the Reader API for detailed output
+                let ext = (path as NSString).pathExtension.lowercased()
+                let mimeType = mimeTypeForExtension(ext)
+                let stream = try Stream(readFrom: URL(fileURLWithPath: path))
+                let reader = try Reader(format: mimeType, stream: stream)
+                let json = try reader.detailedJSON()
+                result(json)
+            } else {
+                let url = URL(fileURLWithPath: path)
+                let json = try C2PA.readFile(at: url, dataDir: dataDir)
+                result(json)
+            }
+        } catch {
+            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
+    // MARK: - Enhanced Builder
+
+    private func handleCreateBuilderWithContext(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let contextHandle = args["contextHandle"] as? Int,
+              let manifestJson = args["manifestJson"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "contextHandle and manifestJson are required", details: nil))
+            return
+        }
+
+        // Apply settings from context before creating builder
+        do {
+            try applyContextSettings(contextHandle)
+            let builder = try Builder(manifestJSON: manifestJson)
+            let handle = storeBuilder(builder)
+            result(handle)
+        } catch {
+            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
+    private func handleCreateBuilderWithSettings(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let manifestJson = args["manifestJson"] as? String,
+              let settingsHandle = args["settingsHandle"] as? Int else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "manifestJson and settingsHandle are required", details: nil))
+            return
+        }
+
+        // Apply settings before creating builder
+        do {
+            try applySettingsFromHandle(settingsHandle)
+            let builder = try Builder(manifestJSON: manifestJson)
+            let handle = storeBuilder(builder)
+            result(handle)
+        } catch {
+            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
+    // MARK: - Certificate Manager
+
+    private func handleCreateSelfSignedCertificateChain(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let keyAlias = args["keyAlias"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "keyAlias is required", details: nil))
+            return
+        }
+
+        let configMap = args["config"] as? [String: Any]
+
+        let config = CertificateManager.CertificateConfig(
+            commonName: configMap?["commonName"] as? String ?? "C2PA Signer",
+            organization: configMap?["organization"] as? String ?? "Unknown",
+            organizationalUnit: configMap?["organizationalUnit"] as? String ?? "",
+            country: configMap?["country"] as? String ?? "US",
+            state: configMap?["state"] as? String ?? "",
+            locality: configMap?["locality"] as? String ?? "",
+            emailAddress: configMap?["emailAddress"] as? String,
+            validityDays: configMap?["validityDays"] as? Int ?? 365
+        )
+
+        do {
+            // Look up the public key from the keychain using the key alias
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassKey,
+                kSecAttrApplicationTag as String: keyAlias,
+                kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+                kSecReturnRef as String: true
+            ]
+
+            var item: CFTypeRef?
+            let status = SecItemCopyMatching(query as CFDictionary, &item)
+
+            guard status == errSecSuccess,
+                  let privateKey = item as! SecKey? else {
+                result(FlutterError(code: "ERROR", message: "Failed to find key '\(keyAlias)' in keychain: \(status)", details: nil))
+                return
+            }
+
+            guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
+                result(FlutterError(code: "ERROR", message: "Failed to extract public key from private key", details: nil))
+                return
+            }
+
+            let certChainPem = try CertificateManager.createSelfSignedCertificateChain(
+                for: publicKey,
+                config: config
+            )
+
+            result(certChainPem)
+        } catch {
+            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
     // MARK: - Key Management
 
     private func handleIsHardwareSigningAvailable(result: @escaping FlutterResult) {
@@ -1106,5 +1412,77 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         defer { builderLock.unlock() }
 
         builders.removeValue(forKey: handle)
+    }
+
+    // MARK: - Settings Handle Management
+
+    private func storeSettings(_ entry: SettingsEntry) -> Int {
+        settingsLock.lock()
+        defer { settingsLock.unlock() }
+
+        let handle = nextSettingsHandle
+        nextSettingsHandle += 1
+        settingsMap[handle] = entry
+        return handle
+    }
+
+    private func getSettings(_ handle: Int) -> SettingsEntry? {
+        settingsLock.lock()
+        defer { settingsLock.unlock() }
+
+        return settingsMap[handle]
+    }
+
+    private func removeSettings(_ handle: Int) {
+        settingsLock.lock()
+        defer { settingsLock.unlock() }
+
+        settingsMap.removeValue(forKey: handle)
+    }
+
+    /// Apply all stored settings segments from a settings handle globally.
+    private func applySettingsFromHandle(_ handle: Int) throws {
+        guard let entry = getSettings(handle) else {
+            throw C2PAError.api("Settings handle not found")
+        }
+
+        for segment in entry.segments {
+            try Signer.loadSettings(segment.settings, format: segment.format)
+        }
+    }
+
+    // MARK: - Context Handle Management
+
+    private func storeContext(settingsHandle: Int) -> Int {
+        contextLock.lock()
+        defer { contextLock.unlock() }
+
+        let handle = nextContextHandle
+        nextContextHandle += 1
+        contexts[handle] = settingsHandle
+        return handle
+    }
+
+    private func getContextSettingsHandle(_ handle: Int) -> Int? {
+        contextLock.lock()
+        defer { contextLock.unlock() }
+
+        return contexts[handle]
+    }
+
+    private func removeContext(_ handle: Int) {
+        contextLock.lock()
+        defer { contextLock.unlock() }
+
+        contexts.removeValue(forKey: handle)
+    }
+
+    /// Apply settings from a context handle (resolves context -> settings -> load).
+    private func applyContextSettings(_ contextHandle: Int) throws {
+        guard let settingsHandle = getContextSettingsHandle(contextHandle) else {
+            throw C2PAError.api("Context handle not found")
+        }
+
+        try applySettingsFromHandle(settingsHandle)
     }
 }

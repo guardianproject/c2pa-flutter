@@ -31,9 +31,31 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   // Track method calls for verification
   final List<MockMethodCall> methodCalls = [];
 
+  String mockCertificateChain =
+      '-----BEGIN CERTIFICATE-----\n'
+      'MIIBmjCCAUCgAwIBAgIUMockCertificate0001AAAAAAAAAAAA\n'
+      'MAwxCjAIBgNVBAMMAUEwHhcNMjUwMTAxMDAwMDAwWhcNMjYw\n'
+      'MTAxMDAwMDAwWjAMMQowCAYDVQQDDAFBMFkwEwYHKoZIzj0C\n'
+      'AQYIKoZIzj0DAQcDQgAEMockPublicKeyDataAAAAAAAAAAAA\n'
+      '-----END CERTIFICATE-----\n'
+      '-----BEGIN CERTIFICATE-----\n'
+      'MIIBmjCCAUCgAwIBAgIUMockCACertificate0001AAAAAAAAAA\n'
+      'MAwxCjAIBgNVBAMMAUEwHhcNMjUwMTAxMDAwMDAwWhcNMjYw\n'
+      'MTAxMDAwMDAwWjAMMQowCAYDVQQDDAFBMFkwEwYHKoZIzj0C\n'
+      'AQYIKoZIzj0DAQcDQgAEMockCAPublicKeyDataAAAAAAAAAAAA\n'
+      '-----END CERTIFICATE-----';
+
   // Builder tracking
   final Map<int, MockBuilder> builders = {};
   int _nextBuilderId = 1;
+
+  // Settings tracking
+  final Map<int, MockSettings> settings = {};
+  int _nextSettingsId = 1;
+
+  // Context tracking
+  final Map<int, MockContext> contexts = {};
+  int _nextContextId = 1;
 
   // Error simulation
   bool simulateError = false;
@@ -43,6 +65,10 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     methodCalls.clear();
     builders.clear();
     _nextBuilderId = 1;
+    settings.clear();
+    _nextSettingsId = 1;
+    contexts.clear();
+    _nextContextId = 1;
     simulateError = false;
     errorMessage = null;
   }
@@ -481,13 +507,168 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   }
 
   // ===========================================================================
-  // Settings API
+  // Settings API - Legacy
   // ===========================================================================
 
   @override
   Future<void> loadSettings(String settings, String format) async {
     _recordCall('loadSettings', {'settings': settings, 'format': format});
     _checkError();
+  }
+
+  // ===========================================================================
+  // Settings API - Handle-based
+  // ===========================================================================
+
+  @override
+  Future<int> createSettings() async {
+    _recordCall('createSettings', null);
+    _checkError();
+
+    final handle = _nextSettingsId++;
+    settings[handle] = MockSettings(handle);
+    return handle;
+  }
+
+  @override
+  Future<void> settingsUpdateFromString(
+    int handle,
+    String settingsStr,
+    String format,
+  ) async {
+    _recordCall('settingsUpdateFromString', {
+      'handle': handle,
+      'settingsStr': settingsStr,
+      'format': format,
+    });
+    _checkError();
+    settings[handle]?.settingsStr = settingsStr;
+    settings[handle]?.format = format;
+  }
+
+  @override
+  Future<void> settingsSetValue(int handle, String path, String value) async {
+    _recordCall('settingsSetValue', {
+      'handle': handle,
+      'path': path,
+      'value': value,
+    });
+    _checkError();
+    settings[handle]?.values[path] = value;
+  }
+
+  @override
+  Future<void> settingsDispose(int handle) async {
+    _recordCall('settingsDispose', {'handle': handle});
+    settings.remove(handle);
+  }
+
+  // ===========================================================================
+  // Context API - Handle-based
+  // ===========================================================================
+
+  @override
+  Future<int> createContext() async {
+    _recordCall('createContext', null);
+    _checkError();
+
+    final handle = _nextContextId++;
+    contexts[handle] = MockContext(handle);
+    return handle;
+  }
+
+  @override
+  Future<int> createContextFromSettings(int settingsHandle) async {
+    _recordCall('createContextFromSettings', {
+      'settingsHandle': settingsHandle,
+    });
+    _checkError();
+
+    final handle = _nextContextId++;
+    contexts[handle] = MockContext(handle, settingsHandle: settingsHandle);
+    return handle;
+  }
+
+  @override
+  Future<void> contextDispose(int handle) async {
+    _recordCall('contextDispose', {'handle': handle});
+    contexts.remove(handle);
+  }
+
+  // ===========================================================================
+  // Enhanced Reader API - Context-based
+  // ===========================================================================
+
+  @override
+  Future<String?> readFileWithContext(
+    String path,
+    int contextHandle,
+    bool detailed,
+    String? dataDir,
+  ) async {
+    _recordCall('readFileWithContext', {
+      'path': path,
+      'contextHandle': contextHandle,
+      'detailed': detailed,
+      'dataDir': dataDir,
+    });
+    _checkError();
+    return mockManifestJson ?? _generateMockManifestJson(path);
+  }
+
+  // ===========================================================================
+  // Enhanced Builder API - Context/Settings-based
+  // ===========================================================================
+
+  @override
+  Future<ManifestBuilder> createBuilderWithContext(
+    int contextHandle,
+    String manifestJson,
+  ) async {
+    _recordCall('createBuilderWithContext', {
+      'contextHandle': contextHandle,
+      'manifestJson': manifestJson,
+    });
+    _checkError();
+
+    final handle = _nextBuilderId++;
+    final builder = MockBuilder(this, handle, manifestJson);
+    builders[handle] = builder;
+    return builder;
+  }
+
+  @override
+  Future<ManifestBuilder> createBuilderWithSettings(
+    String manifestJson,
+    int settingsHandle,
+  ) async {
+    _recordCall('createBuilderWithSettings', {
+      'manifestJson': manifestJson,
+      'settingsHandle': settingsHandle,
+    });
+    _checkError();
+
+    final handle = _nextBuilderId++;
+    final builder = MockBuilder(this, handle, manifestJson);
+    builders[handle] = builder;
+    return builder;
+  }
+
+  // ===========================================================================
+  // Certificate Manager API
+  // ===========================================================================
+
+  @override
+  Future<String> createSelfSignedCertificateChain({
+    required String keyAlias,
+    Map<String, dynamic>? config,
+  }) async {
+    _recordCall('createSelfSignedCertificateChain', {
+      'keyAlias': keyAlias,
+      'config': config,
+    });
+    _checkError();
+    return mockCertificateChain;
   }
 
   // ===========================================================================
@@ -645,4 +826,22 @@ class MockIngredient {
   final String? configJson;
 
   MockIngredient(this.data, this.mimeType, this.configJson);
+}
+
+/// Mock settings handle for tracking
+class MockSettings {
+  final int handle;
+  String? settingsStr;
+  String? format;
+  final Map<String, String> values = {};
+
+  MockSettings(this.handle);
+}
+
+/// Mock context handle for tracking
+class MockContext {
+  final int handle;
+  final int? settingsHandle;
+
+  MockContext(this.handle, {this.settingsHandle});
 }

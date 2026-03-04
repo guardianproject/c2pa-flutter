@@ -27,7 +27,10 @@ enum SigningMode {
   hardware('Hardware Security', 'Use hardware-backed signing (StrongBox / Secure Enclave)'),
 
   /// Remote signing service
-  remote('Remote Signing', 'Use a remote signing service');
+  remote('Remote Signing', 'Use a remote signing service'),
+
+  /// Settings-based signer (JSON/TOML configuration)
+  settingsSigner('Settings Signer', 'Use a JSON/TOML settings configuration for signing');
 
   final String title;
   final String description;
@@ -90,6 +93,14 @@ class C2paManager extends ChangeNotifier {
   String? get bearerToken => _bearerToken;
   bool get hasRemoteConfig => _remoteUrl != null && _remoteUrl!.isNotEmpty;
 
+  // Settings signer configuration
+  String? _settingsSignerJson;
+  String _settingsSignerFormat = 'json';
+  String? get settingsSignerJson => _settingsSignerJson;
+  String get settingsSignerFormat => _settingsSignerFormat;
+  bool get hasSettingsSignerConfig =>
+      _settingsSignerJson != null && _settingsSignerJson!.isNotEmpty;
+
   // Hardware availability cache
   bool? _hardwareAvailable;
 
@@ -115,6 +126,9 @@ class C2paManager extends ChangeNotifier {
 
       _remoteUrl = prefs.getString('remoteUrl');
       _bearerToken = prefs.getString('bearerToken');
+
+      _settingsSignerJson = prefs.getString('settingsSignerJson');
+      _settingsSignerFormat = prefs.getString('settingsSignerFormat') ?? 'json';
 
       notifyListeners();
     } catch (e) {
@@ -153,6 +167,11 @@ class C2paManager extends ChangeNotifier {
       if (_bearerToken != null) {
         await prefs.setString('bearerToken', _bearerToken!);
       }
+
+      if (_settingsSignerJson != null) {
+        await prefs.setString('settingsSignerJson', _settingsSignerJson!);
+      }
+      await prefs.setString('settingsSignerFormat', _settingsSignerFormat);
     } catch (e) {
       debugPrint('Failed to save preferences: $e');
     }
@@ -207,6 +226,23 @@ class C2paManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSettingsSignerConfig({
+    required String settingsJson,
+    String format = 'json',
+  }) {
+    _settingsSignerJson = settingsJson;
+    _settingsSignerFormat = format;
+    _savePreferences();
+    notifyListeners();
+  }
+
+  void clearSettingsSignerConfig() {
+    _settingsSignerJson = null;
+    _settingsSignerFormat = 'json';
+    _savePreferences();
+    notifyListeners();
+  }
+
   /// Check if the current signing mode is ready to sign
   bool get isConfigured {
     switch (_signingMode) {
@@ -222,6 +258,8 @@ class C2paManager extends ChangeNotifier {
         return hasHardwareConfig;
       case SigningMode.remote:
         return hasRemoteConfig;
+      case SigningMode.settingsSigner:
+        return hasSettingsSignerConfig;
     }
   }
 
@@ -243,6 +281,22 @@ class C2paManager extends ChangeNotifier {
     try {
       return await _c2pa.readBytes(data, mimeType);
     } catch (e) {
+      _lastError = e.toString();
+      return null;
+    }
+  }
+
+  /// Read manifest with structured data
+  Future<ManifestStoreInfo?> readManifestEnhanced(String path) async {
+    try {
+      final json = await _c2pa.readFile(path);
+      if (json == null) return null;
+      debugPrint('C2PA readFile JSON keys: ${(jsonDecode(json) as Map<String, dynamic>).keys.toList()}');
+      final store = ManifestStoreInfo.fromJson(json);
+      debugPrint('C2PA parsed: active=${store.activeManifest}, manifests=${store.manifests.length}, status=${store.validationStatus}');
+      return store;
+    } catch (e) {
+      debugPrint('C2PA readManifestEnhanced error: $e');
       _lastError = e.toString();
       return null;
     }
@@ -512,38 +566,54 @@ class C2paManager extends ChangeNotifier {
       if (modelName != null) parameters['model'] = modelName;
       if (prompt != null) parameters['prompt'] = prompt;
 
-      // Build training/mining entries
-      final trainingMiningEntries = <TrainingMiningEntry>[
-        TrainingMiningEntry.aiTraining(
+      // Build CAWG training/mining entries with extended fields
+      final cawgTrainingMiningEntries = <CawgTrainingMiningEntry>[
+        CawgTrainingMiningEntry(
+          use: 'aiTraining',
           permission: allowAiTraining
               ? TrainingMiningPermission.allowed
               : TrainingMiningPermission.notAllowed,
+          aiModelLearningType: 'supervised',
         ),
-        TrainingMiningEntry.aiGenerativeTraining(
+        CawgTrainingMiningEntry(
+          use: 'aiGenerativeTraining',
           permission: allowAiTraining
               ? TrainingMiningPermission.allowed
               : TrainingMiningPermission.notAllowed,
+          aiModelLearningType: 'generative',
         ),
-        TrainingMiningEntry.dataMining(
+        CawgTrainingMiningEntry(
+          use: 'dataMining',
           permission: allowDataMining
               ? TrainingMiningPermission.allowed
               : TrainingMiningPermission.notAllowed,
+          aiMiningType: 'contentAnalysis',
         ),
-        TrainingMiningEntry.aiInference(
+        const CawgTrainingMiningEntry(
+          use: 'aiInference',
           permission: TrainingMiningPermission.allowed,
         ),
       ];
 
-      // Create manifest for AI-generated content
-      final manifest = ManifestDefinition.aiGenerated(
+      // Create manifest with CAWG gathered assertions (proper placement per spec)
+      final manifest = ManifestDefinition.withAssertions(
         title: title,
         claimGenerator: ClaimGeneratorInfo(
           name: 'C2PA Flutter Example',
           version: '1.0.0',
         ),
-        sourceType: DigitalSourceType.trainedAlgorithmicMedia,
-        parameters: parameters.isNotEmpty ? parameters : null,
-        trainingMining: TrainingMiningAssertion(entries: trainingMiningEntries),
+        createdAssertions: [
+          ActionsAssertion(actions: [
+            Action.created(
+              softwareAgent: 'C2PA Flutter Example/1.0.0',
+              when: DateTime.now().toUtc().toIso8601String(),
+              sourceType: DigitalSourceType.trainedAlgorithmicMedia,
+            ),
+          ]),
+        ],
+        gatheredAssertions: [
+          CawgTrainingMiningAssertion(entries: cawgTrainingMiningEntries),
+        ],
       );
 
       builder = await _c2pa.createBuilder(manifest.toJsonString());
@@ -583,13 +653,39 @@ class C2paManager extends ChangeNotifier {
 
     ManifestBuilder? builder;
     try {
+      // Pre-flight manifest validation
+      final validation = ManifestValidator.validate(manifest);
+      if (validation.hasErrors) {
+        _lastError = 'Manifest validation failed: ${validation.errors.join('; ')}';
+        return null;
+      }
+      for (final warning in validation.warnings) {
+        debugPrint('ManifestValidator warning: $warning');
+      }
+
       final signer = await _getSigner();
       if (signer == null) {
         _lastError = 'No signing credentials available. Please configure in Settings.';
         return null;
       }
 
-      builder = await _c2pa.createBuilder(manifest.toJsonString());
+      // Use settings-aware builder when in settingsSigner mode
+      if (_signingMode == SigningMode.settingsSigner &&
+          _settingsSignerJson != null &&
+          _settingsSignerFormat == 'json') {
+        final settings = await C2paSettings.create();
+        try {
+          await settings.updateFromString(_settingsSignerJson!, 'json');
+          builder = await _c2pa.createBuilderWithSettings(
+            manifest.toJsonString(),
+            settings,
+          );
+        } finally {
+          settings.dispose();
+        }
+      } else {
+        builder = await _c2pa.createBuilder(manifest.toJsonString());
+      }
       builder.setIntent(intent, digitalSourceType);
 
       final result = await builder.sign(
@@ -674,6 +770,15 @@ class C2paManager extends ChangeNotifier {
         return RemoteSigner(
           configurationUrl: _remoteUrl!,
           bearerToken: _bearerToken,
+        );
+
+      case SigningMode.settingsSigner:
+        if (_settingsSignerJson == null || _settingsSignerJson!.isEmpty) {
+          return null;
+        }
+        return SettingsSigner(
+          settingsString: _settingsSignerJson!,
+          format: _settingsSignerFormat,
         );
     }
   }
