@@ -10,7 +10,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,13 +76,11 @@ void main() {
   late C2pa c2pa;
   late Directory tempDir;
   late String testCert;
-  late String testKey;
 
   setUpAll(() async {
     c2pa = C2pa();
     tempDir = await getTemporaryDirectory();
     testCert = await rootBundle.loadString('assets/test_certs/test_es256_cert.pem');
-    testKey = await rootBundle.loadString('assets/test_certs/test_es256_key.pem');
   });
 
   tearDown(() async {
