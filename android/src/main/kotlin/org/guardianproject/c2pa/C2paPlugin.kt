@@ -27,6 +27,7 @@ import org.contentauth.c2pa.Signer
 import org.contentauth.c2pa.SignerInfo
 import org.contentauth.c2pa.SigningAlgorithm
 import org.contentauth.c2pa.ByteArrayStream
+import org.contentauth.c2pa.FileStream
 import org.contentauth.c2pa.C2PAError
 import org.contentauth.c2pa.BuilderIntent
 import org.contentauth.c2pa.DigitalSourceType
@@ -474,17 +475,18 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
                 try {
                     val signer = createSignerAsync(signerMap)
                     val sourceFile = File(sourcePath)
-                    val sourceData = sourceFile.readBytes()
                     val mimeType = getMimeTypeFromPath(sourcePath)
+                    val destFile = File(destPath)
 
                     val builder = Builder.fromJson(manifestJson)
-                    val sourceStream = ByteArrayStream(sourceData)
-                    val destStream = ByteArrayStream()
-
-                    builder.sign(mimeType, sourceStream, destStream, signer)
-
-                    val destFile = File(destPath)
-                    destFile.writeBytes(destStream.getData())
+                    val sourceStream = FileStream(sourceFile, FileStream.Mode.READ)
+                    val destStream = FileStream(destFile, FileStream.Mode.READ_WRITE)
+                    try {
+                        builder.sign(mimeType, sourceStream, destStream, signer)
+                    } finally {
+                        sourceStream.close()
+                        destStream.close()
+                    }
 
                     builder.close()
                     signer.close()
@@ -707,11 +709,13 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
 
             // Builder doesn't have addIngredientFile - read file and use addIngredient
             val file = File(path)
-            val data = file.readBytes()
             val mimeType = getMimeTypeFromPath(path)
-            val stream = ByteArrayStream(data)
-
-            builder.addIngredient(ingredientJson ?: "{}", mimeType, stream)
+            val stream = FileStream(file, FileStream.Mode.READ)
+            try {
+                builder.addIngredient(ingredientJson ?: "{}", mimeType, stream)
+            } finally {
+                stream.close()
+            }
             result.success(null)
         } catch (e: C2PAError) {
             result.error("C2PA_ERROR", e.message, null)
@@ -907,16 +911,17 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
                 try {
                     val signer = createSignerAsync(signerMap)
                     val sourceFile = File(sourcePath)
-                    val sourceData = sourceFile.readBytes()
                     val mimeType = getMimeTypeFromPath(sourcePath)
-
-                    val sourceStream = ByteArrayStream(sourceData)
-                    val destStream = ByteArrayStream()
-
-                    builder.sign(mimeType, sourceStream, destStream, signer)
-
                     val destFile = File(destPath)
-                    destFile.writeBytes(destStream.getData())
+
+                    val sourceStream = FileStream(sourceFile, FileStream.Mode.READ)
+                    val destStream = FileStream(destFile, FileStream.Mode.READ_WRITE)
+                    try {
+                        builder.sign(mimeType, sourceStream, destStream, signer)
+                    } finally {
+                        sourceStream.close()
+                        destStream.close()
+                    }
 
                     signer.close()
 
@@ -954,16 +959,17 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         result: Result
     ) {
         val sourceFile = File(sourcePath)
-        val sourceData = sourceFile.readBytes()
         val mimeType = getMimeTypeFromPath(sourcePath)
-
-        val sourceStream = ByteArrayStream(sourceData)
-        val destStream = ByteArrayStream()
-
-        builder.sign(mimeType, sourceStream, destStream, signer)
-
         val destFile = File(destPath)
-        destFile.writeBytes(destStream.getData())
+
+        val sourceStream = FileStream(sourceFile, FileStream.Mode.READ)
+        val destStream = FileStream(destFile, FileStream.Mode.READ_WRITE)
+        try {
+            builder.sign(mimeType, sourceStream, destStream, signer)
+        } finally {
+            sourceStream.close()
+            destStream.close()
+        }
 
         result.success(null)
     }
@@ -1349,11 +1355,14 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
             }
 
             val file = File(path)
-            val fileData = file.readBytes()
             val mimeType = getMimeTypeFromPath(path)
-            val stream = ByteArrayStream(fileData)
-
-            val reader = Reader.fromContext(contextObj).withStream(mimeType, stream)
+            val stream = FileStream(file, FileStream.Mode.READ)
+            val reader: Reader
+            try {
+                reader = Reader.fromContext(contextObj).withStream(mimeType, stream)
+            } finally {
+                stream.close()
+            }
             val json = if (detailed) reader.detailedJson() else reader.json()
             reader.close()
             result.success(json)
