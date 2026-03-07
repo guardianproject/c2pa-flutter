@@ -1,3 +1,8 @@
+## 0.0.3
+
+* Fix Android OOM crashes in file-based signing by replacing readBytes()/ByteArrayStream with FileStream
+* Fix iOS CI integration test failures caused by stale Xcode module cache
+
 ## 0.0.2
 
 * Update to latest c2pa-android and c2pa-ios SDKs

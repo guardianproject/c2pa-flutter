@@ -250,6 +250,9 @@ jobs:
           flutter pub get
           cd example && flutter pub get
 
+      - name: Clean stale build caches
+        run: cd example && flutter clean && flutter pub get
+
       - name: Ensure Simulator is Available
         run: |
           echo "Looking for simulator: $DEVICE_NAME with iOS $IOS_VERSION"
