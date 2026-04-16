@@ -20,7 +20,8 @@ void main() {
     test('PredefinedAction has correct values', () {
       expect(PredefinedAction.created.value, 'c2pa.created');
       expect(PredefinedAction.edited.value, 'c2pa.edited');
-      expect(PredefinedAction.aiGenerated.value, 'c2pa.ai_generated');
+      expect(PredefinedAction.watermarkedBound.value, 'c2pa.watermarked.bound');
+      expect(PredefinedAction.fontSubset.value, 'font.subset');
     });
 
     test('Relationship serializes correctly', () {
@@ -269,19 +270,19 @@ void main() {
       expect(action.changes?.length, 1);
     });
 
-    test('aiGenerated factory sets correct values', () {
-      final action = Action.aiGenerated(
+    test('created action with trainedAlgorithmicMedia source type', () {
+      // C2PA represents AI-generated content via the trainedAlgorithmicMedia
+      // digital source type on a created action, not via a custom action string.
+      final action = Action.created(
         sourceType: DigitalSourceType.trainedAlgorithmicMedia,
         softwareAgent: 'AI Model v1',
-        parameters: {'model': 'test-model'},
       );
 
-      expect(action.action, 'c2pa.ai_generated');
+      expect(action.action, 'c2pa.created');
       expect(
         action.digitalSourceType,
         DigitalSourceType.trainedAlgorithmicMedia.url,
       );
-      expect(action.parameters?['model'], 'test-model');
     });
 
     test('toJson and fromJson round-trip', () {

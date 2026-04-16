@@ -107,10 +107,12 @@ import 'package:meta/meta.dart';
 
 import 'c2pa_platform_interface.dart';
 import 'src/manifest_types.dart';
+import 'src/settings_definition.dart';
 
 // Export manifest types
 export 'src/manifest_types.dart';
 export 'src/manifest_validator.dart';
+export 'src/settings_definition.dart';
 export 'src/settings_validator.dart';
 
 // =============================================================================
@@ -1098,6 +1100,18 @@ abstract class ManifestBuilder {
     IngredientConfig? config,
   });
 
+  /// Add an ingredient from a file path.
+  ///
+  /// Prefer this over [addIngredient] for large files — the native plugin reads
+  /// the file directly and avoids round-tripping the bytes through the Dart VM.
+  ///
+  /// If [mimeType] is null, the native side infers it from the file extension.
+  Future<void> addIngredientFromFile({
+    required String path,
+    String? mimeType,
+    IngredientConfig? config,
+  });
+
   /// Add an action to the manifest
   void addAction(ActionConfig action);
 
@@ -1152,6 +1166,18 @@ class C2paSettings {
     return C2paSettings._(handle);
   }
 
+  /// Create a new settings instance initialized from a typed
+  /// [C2paSettingsDefinition].
+  ///
+  /// The definition is serialized to JSON and applied immediately.
+  static Future<C2paSettings> fromDefinition(
+    C2paSettingsDefinition definition,
+  ) async {
+    final settings = await create();
+    await settings.updateFromDefinition(definition);
+    return settings;
+  }
+
   /// Update settings from a JSON or TOML string.
   ///
   /// The [format] should be 'json' or 'toml'.
@@ -1164,9 +1190,24 @@ class C2paSettings {
     );
   }
 
+  /// Update settings from a typed [C2paSettingsDefinition].
+  ///
+  /// The definition is serialized to JSON and applied via [updateFromString].
+  /// This is the preferred way to build settings programmatically —
+  /// it mirrors `C2PASettings.init(definition:)` on iOS and
+  /// `C2PASettings.fromDefinition(...)` on Android.
+  Future<void> updateFromDefinition(C2paSettingsDefinition definition) {
+    return updateFromString(definition.toJsonString(), 'json');
+  }
+
   /// Set an individual setting value using dot notation.
   ///
   /// Example: `await settings.setValue('verify.verify_trust', 'false');`
+  ///
+  /// **Platform note.** Both platforms accept the value as a JSON-compatible
+  /// primitive, but the Android plugin currently only widens to String at the
+  /// channel boundary. Pass values as strings for cross-platform safety
+  /// (e.g. `'true'`, `'42'`, `'es256'`).
   Future<void> setValue(String path, String value) {
     _checkDisposed();
     return C2paPlatform.instance.settingsSetValue(_handle, path, value);
@@ -1428,6 +1469,22 @@ class C2pa {
     return C2paPlatform.instance.readIngredientFile(path, dataDir);
   }
 
+  /// Return the remote manifest URL embedded in the file at [path], if any.
+  ///
+  /// Returns null when the asset has no manifest or when the manifest is
+  /// embedded (no remote reference).
+  Future<String?> getRemoteUrl(String path, {String? mimeType}) {
+    return C2paPlatform.instance.getRemoteUrl(path, mimeType: mimeType);
+  }
+
+  /// Return whether the manifest at [path] is embedded in the file itself.
+  ///
+  /// Returns false when no manifest is present or the manifest is stored
+  /// remotely and only referenced from the asset.
+  Future<bool> isManifestEmbedded(String path, {String? mimeType}) {
+    return C2paPlatform.instance.isManifestEmbedded(path, mimeType: mimeType);
+  }
+
   /// Get supported MIME types for reading
   Future<List<String>> getSupportedReadMimeTypes() {
     return C2paPlatform.instance.getSupportedReadMimeTypes();
@@ -1492,10 +1549,14 @@ class C2pa {
   // Advanced Signing API
   // ===========================================================================
 
-  /// Create a hashed placeholder for later signing
+  /// Create a hashed placeholder for later signing.
   ///
   /// This is used for advanced signing workflows where the asset
   /// needs to be prepared before the actual signing occurs.
+  ///
+  /// **Platform note.** Android is implemented. iOS currently throws
+  /// `NOT_IMPLEMENTED_IOS` — blocked on c2pa-ios exposing
+  /// `Builder.dataHashedPlaceholder` as public Swift API.
   Future<Uint8List> createHashedPlaceholder({
     required ManifestBuilder builder,
     required int reservedSize,
@@ -1508,9 +1569,13 @@ class C2pa {
     );
   }
 
-  /// Sign a data-hashed embeddable manifest
+  /// Sign a data-hashed embeddable manifest.
   ///
-  /// This is used after createHashedPlaceholder for advanced signing workflows.
+  /// This is used after [createHashedPlaceholder] for advanced signing workflows.
+  ///
+  /// **Platform note.** Android is implemented. iOS currently throws
+  /// `NOT_IMPLEMENTED_IOS` — blocked on c2pa-ios exposing
+  /// `Builder.signDataHashedEmbeddable` as public Swift API.
   Future<Uint8List> signHashedEmbeddable({
     required ManifestBuilder builder,
     required C2paSigner signer,
@@ -1527,14 +1592,16 @@ class C2pa {
     );
   }
 
-  /// Convert raw manifest bytes to an embeddable format
+  /// Convert raw manifest bytes to an embeddable format.
   ///
   /// A raw manifest (application/c2pa format) cannot be embedded directly.
   /// This converts it to an embeddable format for the specified MIME type.
   ///
-  /// **Android note**: This method returns the input unchanged on Android as
-  /// the native library does not support this operation. The manifest bytes
-  /// from [signHashedEmbeddable] are already in the correct format on Android.
+  /// **Platform notes.**
+  /// - Android: returns the input unchanged; manifest bytes from
+  ///   [signHashedEmbeddable] are already in the correct format.
+  /// - iOS: currently throws `NOT_IMPLEMENTED_IOS` — blocked on c2pa-ios
+  ///   exposing `c2pa_format_embeddable_manifest` via a public Swift wrapper.
   Future<Uint8List> formatEmbeddable({
     required String mimeType,
     required Uint8List manifestBytes,
@@ -1612,8 +1679,10 @@ class C2pa {
   /// This allows using externally generated keys (e.g., test certificates)
   /// with the Keystore signer. The private key must be in PKCS#8 PEM format.
   ///
-  /// Note: On Android, this imports into AndroidKeyStore. The key will not
-  /// have hardware protection even if StrongBox is available.
+  /// **Platform notes.**
+  /// - Android: imports into AndroidKeyStore. The key will not have hardware
+  ///   protection even if StrongBox is available.
+  /// - iOS: currently throws `NOT_IMPLEMENTED_IOS` (scheduled).
   Future<void> importKey({
     required String keyAlias,
     required String privateKeyPem,
@@ -1630,6 +1699,10 @@ class C2pa {
   ///
   /// The key must already exist in the platform keystore (created via [createKey]).
   /// Returns a PEM-encoded CSR that can be submitted to a signing server.
+  ///
+  /// **Platform note.** Android is implemented. iOS currently throws
+  /// `NOT_IMPLEMENTED_IOS` (scheduled — `CertificateManager.createCSR(keyTag:config:)`
+  /// on iOS is public and usable once the plugin handler is wired up).
   Future<String> createCSR({
     required String keyAlias,
     required String commonName,
@@ -1658,6 +1731,11 @@ class C2pa {
   /// Returns a map containing:
   /// - `certificateChain`: The PEM-encoded certificate chain from the server
   /// - `keyAlias`: The key alias used
+  ///
+  /// **Platform note.** Android is implemented via
+  /// `CertificateManager.createSignerWithCSR`. iOS currently throws
+  /// `NOT_IMPLEMENTED_IOS` (scheduled — the plugin needs to compose
+  /// `createKey` + `CertificateManager.createCSR` + `URLSession` POST).
   Future<Map<String, dynamic>> enrollHardwareKey({
     required String keyAlias,
     required String signingServerUrl,

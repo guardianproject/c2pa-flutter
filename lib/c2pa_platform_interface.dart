@@ -101,6 +101,20 @@ abstract class C2paPlatform extends PlatformInterface {
     throw UnimplementedError('readIngredientFile() has not been implemented.');
   }
 
+  /// Returns the remote manifest URL for a file at [path], if any.
+  /// Returns null when the file has no manifest or no remote URL.
+  Future<String?> getRemoteUrl(String path, {String? mimeType}) {
+    throw UnimplementedError('getRemoteUrl() has not been implemented.');
+  }
+
+  /// Returns whether the manifest at [path] is embedded in the file (true) or
+  /// only referenced by a remote URL (false). Returns false when no manifest is present.
+  Future<bool> isManifestEmbedded(String path, {String? mimeType}) {
+    throw UnimplementedError(
+      'isManifestEmbedded() has not been implemented.',
+    );
+  }
+
   /// Returns the list of MIME types supported for reading.
   Future<List<String>> getSupportedReadMimeTypes() {
     throw UnimplementedError(
@@ -188,6 +202,19 @@ abstract class C2paPlatform extends PlatformInterface {
   ) {
     throw UnimplementedError(
       'builderAddIngredient() has not been implemented.',
+    );
+  }
+
+  /// Adds an ingredient from a file at [path] to the builder at [handle].
+  /// If [mimeType] is null, the native side infers it from the file extension.
+  Future<void> builderAddIngredientFromFile(
+    int handle,
+    String path,
+    String? mimeType,
+    String? ingredientJson,
+  ) {
+    throw UnimplementedError(
+      'builderAddIngredientFromFile() has not been implemented.',
     );
   }
 

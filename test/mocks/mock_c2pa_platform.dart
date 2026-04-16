@@ -131,6 +131,26 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     return mockManifestJson ?? _generateMockManifestJson('bytes');
   }
 
+  /// Remote URL returned by the mock for [getRemoteUrl]; null means embedded manifest.
+  String? mockRemoteUrl;
+
+  /// Whether the mock reports the manifest as embedded.
+  bool mockIsManifestEmbedded = true;
+
+  @override
+  Future<String?> getRemoteUrl(String path, {String? mimeType}) async {
+    _recordCall('getRemoteUrl', {'path': path, 'mimeType': mimeType});
+    _checkError();
+    return mockRemoteUrl;
+  }
+
+  @override
+  Future<bool> isManifestEmbedded(String path, {String? mimeType}) async {
+    _recordCall('isManifestEmbedded', {'path': path, 'mimeType': mimeType});
+    _checkError();
+    return mockIsManifestEmbedded;
+  }
+
   // =============================================================================
   // Reader API - Enhanced
   // =============================================================================
@@ -341,6 +361,25 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     _checkError();
     builders[handle]?.ingredients.add(
       MockIngredient(data, mimeType, ingredientJson),
+    );
+  }
+
+  @override
+  Future<void> builderAddIngredientFromFile(
+    int handle,
+    String path,
+    String? mimeType,
+    String? ingredientJson,
+  ) async {
+    _recordCall('builderAddIngredientFromFile', {
+      'handle': handle,
+      'path': path,
+      'mimeType': mimeType,
+      'ingredientJson': ingredientJson,
+    });
+    _checkError();
+    builders[handle]?.ingredients.add(
+      MockIngredient(Uint8List(0), mimeType ?? '', ingredientJson),
     );
   }
 
@@ -794,6 +833,21 @@ class MockBuilder implements ManifestBuilder {
     await _platform.builderAddIngredient(
       _handle,
       data,
+      mimeType,
+      config?.toJson(),
+    );
+  }
+
+  @override
+  Future<void> addIngredientFromFile({
+    required String path,
+    String? mimeType,
+    IngredientConfig? config,
+  }) async {
+    _checkDisposed();
+    await _platform.builderAddIngredientFromFile(
+      _handle,
+      path,
       mimeType,
       config?.toJson(),
     );
