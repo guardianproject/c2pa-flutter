@@ -207,10 +207,13 @@ void main() {
         final cropped = Action.cropped();
         expect(cropped.action, 'c2pa.cropped');
 
-        final aiGenerated = Action.aiGenerated(
+        // AI-generated content is tagged via DigitalSourceType on a created
+        // action (spec-compliant), not via a custom action string.
+        final aiGenerated = Action.created(
           sourceType: DigitalSourceType.trainedAlgorithmicMedia,
         );
-        expect(aiGenerated.action, 'c2pa.ai_generated');
+        expect(aiGenerated.action, 'c2pa.created');
+        expect(aiGenerated.digitalSourceType, contains('trainedAlgorithmicMedia'));
       });
 
       testWidgets('Ingredient factories create correct ingredients', (tester) async {

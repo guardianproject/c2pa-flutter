@@ -89,6 +89,23 @@ class MethodChannelC2pa extends C2paPlatform {
     return version;
   }
 
+  @override
+  Future<String?> getRemoteUrl(String path, {String? mimeType}) async {
+    return methodChannel.invokeMethod<String>('getRemoteUrl', {
+      'path': path,
+      'mimeType': mimeType,
+    });
+  }
+
+  @override
+  Future<bool> isManifestEmbedded(String path, {String? mimeType}) async {
+    final result = await methodChannel.invokeMethod<bool>('isManifestEmbedded', {
+      'path': path,
+      'mimeType': mimeType,
+    });
+    return result ?? false;
+  }
+
   // =============================================================================
   // Reader API - Basic
   // =============================================================================
@@ -338,6 +355,21 @@ class MethodChannelC2pa extends C2paPlatform {
     await methodChannel.invokeMethod<void>('builderAddIngredient', {
       'handle': handle,
       'data': data,
+      'mimeType': mimeType,
+      'ingredientJson': ingredientJson,
+    });
+  }
+
+  @override
+  Future<void> builderAddIngredientFromFile(
+    int handle,
+    String path,
+    String? mimeType,
+    String? ingredientJson,
+  ) async {
+    await methodChannel.invokeMethod<void>('builderAddIngredientFromFile', {
+      'handle': handle,
+      'filePath': path,
       'mimeType': mimeType,
       'ingredientJson': ingredientJson,
     });
@@ -913,6 +945,21 @@ class MethodChannelManifestBuilder implements ManifestBuilder {
     await _platform.builderAddIngredient(
       _handle,
       data,
+      mimeType,
+      config?.toJson(),
+    );
+  }
+
+  @override
+  Future<void> addIngredientFromFile({
+    required String path,
+    String? mimeType,
+    IngredientConfig? config,
+  }) async {
+    _checkDisposed();
+    await _platform.builderAddIngredientFromFile(
+      _handle,
+      path,
       mimeType,
       config?.toJson(),
     );
