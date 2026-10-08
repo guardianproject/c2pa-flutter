@@ -191,6 +191,19 @@ abstract class C2paPlatform extends PlatformInterface {
     );
   }
 
+  /// Adds an ingredient read from the file at [path] to the builder at
+  /// [handle], streaming it instead of loading it into memory. The MIME type
+  /// is taken from the file extension.
+  Future<void> builderAddIngredientFromFile(
+    int handle,
+    String path,
+    String? ingredientJson,
+  ) {
+    throw UnimplementedError(
+      'builderAddIngredientFromFile() has not been implemented.',
+    );
+  }
+
   /// Adds an action from [actionJson] to the builder at [handle].
   Future<void> builderAddAction(int handle, String actionJson) {
     throw UnimplementedError('builderAddAction() has not been implemented.');

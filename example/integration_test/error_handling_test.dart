@@ -276,6 +276,30 @@ void main() {
     });
   });
 
+  group('Invalid Input - Builder Files', () {
+    testWidgets('addIngredientFromFile with a missing file throws and creates '
+        'nothing', (tester) async {
+      final missingFile = File('${tempDir.path}/missing_ingredient.jpg');
+      if (missingFile.existsSync()) missingFile.deleteSync();
+
+      final builder = await c2pa.createBuilder(
+        jsonEncode({
+          'claim_generator': 'test/1.0',
+          'title': 'Test',
+          'format': 'image/jpeg',
+        }),
+      );
+
+      await expectLater(
+        builder.addIngredientFromFile(path: missingFile.path),
+        throwsA(isA<PlatformException>()),
+      );
+      expect(missingFile.existsSync(), isFalse);
+
+      builder.dispose();
+    });
+  });
+
   group('Edge Cases', () {
     testWidgets('very small image (minimal valid JPEG)', (tester) async {
       // Minimal JPEG header - too small to be valid

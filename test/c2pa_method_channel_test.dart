@@ -10,6 +10,7 @@ files for the specific language governing permissions and limitations under
 each license.
 */
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -107,6 +108,109 @@ void main() {
       );
 
       builder.dispose();
+    });
+
+    test('addIngredientFromFile sends the path, not the file bytes', () async {
+      final builder = await platform.createBuilder('{}');
+
+      await builder.addIngredientFromFile(
+        path: '/clips/source.mp4',
+        config: const IngredientConfig(
+          title: 'source.mp4',
+          relationship: Relationship.parentOf,
+        ),
+      );
+
+      final call = methodCalls.singleWhere(
+        (c) => c.method == 'builderAddIngredientFromFile',
+      );
+      expect(call.arguments['path'], '/clips/source.mp4');
+      expect(call.arguments.containsKey('data'), isFalse);
+      final ingredient =
+          jsonDecode(call.arguments['ingredientJson'] as String)
+              as Map<String, dynamic>;
+      expect(ingredient['relationship'], 'parentOf');
+
+      builder.dispose();
+    });
+
+    test('signFile applies pending intent and actions, then streams the '
+        'file', () async {
+      final builder = await platform.createBuilder('{}');
+
+      builder
+        ..setIntent(ManifestIntent.edit)
+        ..addAction(const ActionConfig(action: 'c2pa.edited'));
+      await builder.signFile(
+        sourcePath: '/clips/edited.mp4',
+        destPath: '/clips/edited_signed.mp4',
+        signer: const PemSigner(
+          algorithm: SigningAlgorithm.es256,
+          certificatePem: 'test-cert',
+          privateKeyPem: 'test-key',
+        ),
+      );
+
+      final methods = methodCalls.map((c) => c.method).toList();
+      expect(
+        methods,
+        containsAllInOrder([
+          'builderSetIntent',
+          'builderAddAction',
+          'builderSignFile',
+        ]),
+      );
+      final signCall = methodCalls.singleWhere(
+        (c) => c.method == 'builderSignFile',
+      );
+      expect(signCall.arguments['sourcePath'], '/clips/edited.mp4');
+      expect(signCall.arguments['destPath'], '/clips/edited_signed.mp4');
+      expect(methods, isNot(contains('builderSign')));
+
+      builder.dispose();
+    });
+
+    test('dispose during signFile frees the native builder only after '
+        'signing finishes', () async {
+      final signing = Completer<void>();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+            methodCalls.add(methodCall);
+            switch (methodCall.method) {
+              case 'createBuilder':
+                return nextHandle++;
+              case 'builderSignFile':
+                await signing.future;
+                return null;
+              default:
+                return null;
+            }
+          });
+      final builder = await platform.createBuilder('{}');
+
+      final signFuture = builder.signFile(
+        sourcePath: '/clips/edited.mp4',
+        destPath: '/clips/edited_signed.mp4',
+        signer: const PemSigner(
+          algorithm: SigningAlgorithm.es256,
+          certificatePem: 'test-cert',
+          privateKeyPem: 'test-key',
+        ),
+      );
+      await pumpEventQueue();
+      expect(methodCalls.last.method, 'builderSignFile');
+
+      builder.dispose();
+      await pumpEventQueue();
+      expect(
+        methodCalls.map((c) => c.method),
+        isNot(contains('builderDispose')),
+      );
+
+      signing.complete();
+      await signFuture;
+      await pumpEventQueue();
+      expect(methodCalls.last.method, 'builderDispose');
     });
 
     test('addAction is applied via native call on sign', () async {

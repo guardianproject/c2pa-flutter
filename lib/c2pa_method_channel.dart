@@ -344,6 +344,19 @@ class MethodChannelC2pa extends C2paPlatform {
   }
 
   @override
+  Future<void> builderAddIngredientFromFile(
+    int handle,
+    String path,
+    String? ingredientJson,
+  ) async {
+    await methodChannel.invokeMethod<void>('builderAddIngredientFromFile', {
+      'handle': handle,
+      'path': path,
+      'ingredientJson': ingredientJson,
+    });
+  }
+
+  @override
   Future<void> builderAddAction(int handle, String actionJson) async {
     await methodChannel.invokeMethod<void>('builderAddAction', {
       'handle': handle,
@@ -861,6 +874,10 @@ class MethodChannelManifestBuilder implements ManifestBuilder {
   // Pending operations that need to be sent to native
   final List<Map<String, dynamic>> _pendingOperations = [];
 
+  // Native calls that have not settled yet. Some run off the platform's main
+  // thread, so dispose() waits for them before freeing the native builder.
+  final Set<Future<void>> _inFlight = {};
+
   MethodChannelManifestBuilder(this._platform, this._handle);
 
   @override
@@ -869,6 +886,18 @@ class MethodChannelManifestBuilder implements ManifestBuilder {
   void _checkDisposed() {
     if (_disposed) {
       throw StateError('ManifestBuilder has been disposed');
+    }
+  }
+
+  /// Runs [call], keeping it in [_inFlight] until it settles.
+  Future<T> _track<T>(Future<T> Function() call) async {
+    final future = call();
+    final settled = future.then<void>((_) {}, onError: (Object _) {});
+    _inFlight.add(settled);
+    try {
+      return await future;
+    } finally {
+      _inFlight.remove(settled);
     }
   }
 
@@ -900,7 +929,9 @@ class MethodChannelManifestBuilder implements ManifestBuilder {
   @override
   Future<void> addResource(BuilderResource resource) async {
     _checkDisposed();
-    await _platform.builderAddResource(_handle, resource.uri, resource.data);
+    await _track(
+      () => _platform.builderAddResource(_handle, resource.uri, resource.data),
+    );
   }
 
   @override
@@ -910,11 +941,28 @@ class MethodChannelManifestBuilder implements ManifestBuilder {
     IngredientConfig? config,
   }) async {
     _checkDisposed();
-    await _platform.builderAddIngredient(
-      _handle,
-      data,
-      mimeType,
-      config?.toJson(),
+    await _track(
+      () => _platform.builderAddIngredient(
+        _handle,
+        data,
+        mimeType,
+        config?.toJson(),
+      ),
+    );
+  }
+
+  @override
+  Future<void> addIngredientFromFile({
+    required String path,
+    IngredientConfig? config,
+  }) async {
+    _checkDisposed();
+    await _track(
+      () => _platform.builderAddIngredientFromFile(
+        _handle,
+        path,
+        config?.toJson(),
+      ),
     );
   }
 
@@ -955,8 +1003,10 @@ class MethodChannelManifestBuilder implements ManifestBuilder {
   @override
   Future<BuilderArchive> toArchive() async {
     _checkDisposed();
-    await _applyPendingOperations();
-    final data = await _platform.builderToArchive(_handle);
+    final data = await _track(() async {
+      await _applyPendingOperations();
+      return _platform.builderToArchive(_handle);
+    });
     return BuilderArchive(data: data);
   }
 
@@ -967,15 +1017,37 @@ class MethodChannelManifestBuilder implements ManifestBuilder {
     required C2paSigner signer,
   }) async {
     _checkDisposed();
-    await _applyPendingOperations();
-    return _platform.builderSign(_handle, sourceData, mimeType, signer);
+    return _track(() async {
+      await _applyPendingOperations();
+      return _platform.builderSign(_handle, sourceData, mimeType, signer);
+    });
+  }
+
+  @override
+  Future<void> signFile({
+    required String sourcePath,
+    required String destPath,
+    required C2paSigner signer,
+  }) async {
+    _checkDisposed();
+    await _track(() async {
+      await _applyPendingOperations();
+      await _platform.builderSignFile(_handle, sourcePath, destPath, signer);
+    });
   }
 
   @override
   void dispose() {
-    if (!_disposed) {
-      _disposed = true;
+    if (_disposed) return;
+    _disposed = true;
+    if (_inFlight.isEmpty) {
       _platform.builderDispose(_handle);
+      return;
     }
+    // Android frees the builder on dispose, so a call still using it would
+    // crash. Free it once every running call has settled.
+    Future.wait(
+      _inFlight.toList(),
+    ).then((_) => _platform.builderDispose(_handle));
   }
 }

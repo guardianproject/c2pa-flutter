@@ -345,6 +345,20 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   }
 
   @override
+  Future<void> builderAddIngredientFromFile(
+    int handle,
+    String path,
+    String? ingredientJson,
+  ) async {
+    _recordCall('builderAddIngredientFromFile', {
+      'handle': handle,
+      'path': path,
+      'ingredientJson': ingredientJson,
+    });
+    _checkError();
+  }
+
+  @override
   Future<void> builderAddAction(int handle, String actionJson) async {
     _recordCall('builderAddAction', {
       'handle': handle,
@@ -800,6 +814,19 @@ class MockBuilder implements ManifestBuilder {
   }
 
   @override
+  Future<void> addIngredientFromFile({
+    required String path,
+    IngredientConfig? config,
+  }) async {
+    _checkDisposed();
+    await _platform.builderAddIngredientFromFile(
+      _handle,
+      path,
+      config?.toJson(),
+    );
+  }
+
+  @override
   void addAction(ActionConfig action) {
     _checkDisposed();
     actions.add(action.toJson());
@@ -820,6 +847,16 @@ class MockBuilder implements ManifestBuilder {
   }) async {
     _checkDisposed();
     return _platform.builderSign(_handle, sourceData, mimeType, signer);
+  }
+
+  @override
+  Future<void> signFile({
+    required String sourcePath,
+    required String destPath,
+    required C2paSigner signer,
+  }) async {
+    _checkDisposed();
+    await _platform.builderSignFile(_handle, sourcePath, destPath, signer);
   }
 
   @override

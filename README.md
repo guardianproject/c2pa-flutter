@@ -126,6 +126,28 @@ await c2pa.signFile(
 );
 ```
 
+### Record an edit of large media (files)
+
+`addIngredientFromFile` and `signFile` on a `ManifestBuilder` stream the files
+on the native side instead of copying them into Dart memory, so they work for
+video ingredients that would not fit through `addIngredient` / `sign`.
+
+```dart
+final builder = await c2pa.createBuilder(manifestJson);
+builder.setIntent(ManifestIntent.edit);
+await builder.addIngredientFromFile(
+  path: '/path/to/original.mp4',
+  config: const IngredientConfig(relationship: Relationship.parentOf),
+);
+builder.addAction(const ActionConfig(action: 'c2pa.edited'));
+await builder.signFile(
+  sourcePath: '/path/to/edited.mp4',
+  destPath: '/path/to/edited_signed.mp4',
+  signer: signer,
+);
+builder.dispose();
+```
+
 ## API Reference
 
 ### C2pa

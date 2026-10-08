@@ -298,6 +298,58 @@ void main() {
       expect(storeInfo!.active, isNotNull);
     });
 
+    testWidgets('builder file ingredient and file signing roundtrip', (
+      tester,
+    ) async {
+      final ingredientFile = File('${tempDir.path}/builder_file_parent.jpg');
+      final sourceFile = File('${tempDir.path}/builder_file_source.jpg');
+      final signedFile = File('${tempDir.path}/builder_file_signed.jpg');
+      await ingredientFile.writeAsBytes(testImageBytes);
+      await sourceFile.writeAsBytes(testImageBytes);
+      // A leftover file at the destination, larger than the signed output,
+      // must be replaced rather than partially overwritten.
+      final leftover = Uint8List(2 * 1024 * 1024);
+      await signedFile.writeAsBytes(leftover);
+
+      final builder = await c2pa.createBuilder(
+        jsonEncode({
+          'claim_generator': 'c2pa_flutter_builder_file_test/1.0',
+          'title': 'Builder File Roundtrip Test',
+          'format': 'image/jpeg',
+        }),
+      );
+      builder.setIntent(ManifestIntent.edit);
+      await builder.addIngredientFromFile(
+        path: ingredientFile.path,
+        config: const IngredientConfig(
+          title: 'builder_file_parent.jpg',
+          relationship: Relationship.parentOf,
+        ),
+      );
+      builder.addAction(const ActionConfig(action: 'c2pa.edited'));
+
+      await builder.signFile(
+        sourcePath: sourceFile.path,
+        destPath: signedFile.path,
+        signer: PemSigner(
+          algorithm: SigningAlgorithm.es256,
+          certificatePem: testCert,
+          privateKeyPem: testKey,
+        ),
+      );
+      builder.dispose();
+
+      expect(await signedFile.length(), lessThan(leftover.length));
+      final storeInfo = await c2pa.readManifestFromFile(signedFile.path);
+      final ingredient = storeInfo!.active!.ingredients.single;
+      expect(ingredient.title, 'builder_file_parent.jpg');
+      expect(ingredient.relationship, Relationship.parentOf);
+
+      await ingredientFile.delete();
+      await sourceFile.delete();
+      await signedFile.delete();
+    });
+
     testWidgets('builder archive roundtrip', (tester) async {
       final manifest = jsonEncode({
         'claim_generator': 'c2pa_flutter_archive_test/1.0',

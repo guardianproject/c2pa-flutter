@@ -1,3 +1,12 @@
+## Unreleased
+
+* Add `ManifestBuilder.addIngredientFromFile` and `ManifestBuilder.signFile`, which stream files natively so video ingredients and outputs no longer pass through Dart memory. Classes that implement `ManifestBuilder` must add both methods
+* Read file ingredients and run `ManifestBuilder.signFile` off the main thread on Android and iOS, for every signer type
+* `ManifestBuilder.dispose` now waits for running builder calls before freeing the native builder, which could crash on Android
+* Android: replace an existing destination file when signing to a file instead of overwriting it in place, which left stale bytes after a shorter output
+* Android: fail on a missing source or ingredient file instead of creating an empty one
+* iOS: recognize `.m4v`, `.m4a`, `.mp3` and `.svg` when deriving the MIME type from a file path, as Android already did
+
 ## 0.0.3
 
 * Fix Android OOM crashes in file-based signing by replacing readBytes()/ByteArrayStream with FileStream

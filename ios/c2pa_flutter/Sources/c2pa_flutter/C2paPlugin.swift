@@ -752,12 +752,20 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         let ext = (path as NSString).pathExtension.lowercased()
         let mimeType = mimeTypeForExtension(ext)
 
-        do {
-            let stream = try Stream(readFrom: URL(fileURLWithPath: path))
-            try builder.addIngredient(json: ingredientJson, format: mimeType, from: stream)
-            result(nil)
-        } catch {
-            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        // Adding an ingredient reads and hashes the whole file, which takes
+        // seconds for a video, so it runs off the main thread.
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let stream = try Stream(readFrom: URL(fileURLWithPath: path))
+                try builder.addIngredient(json: ingredientJson, format: mimeType, from: stream)
+                DispatchQueue.main.async {
+                    result(nil)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+                }
+            }
         }
     }
 
@@ -901,13 +909,15 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             return
         }
 
-        let signerType = signerMap["type"] as? String ?? "pem"
-        let needsBackgroundQueue = signerType == "callback" || signerType == "remote"
+        let mimeType = mimeTypeForExtension((sourcePath as NSString).pathExtension.lowercased())
 
         createSigner(signerMap, result: result) { signer in
-            let signingWork = {
+            // Signing hashes and rewrites the whole file, which takes seconds
+            // for a video, so it runs off the main thread for every signer
+            // type. Callback and remote signers also need this to avoid a
+            // deadlock.
+            DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    let mimeType = self.mimeTypeForExtension((sourcePath as NSString).pathExtension.lowercased())
                     let sourceStream = try Stream(readFrom: URL(fileURLWithPath: sourcePath))
                     let destStream = try Stream(writeTo: URL(fileURLWithPath: destPath))
 
@@ -926,14 +936,6 @@ public class C2paPlugin: NSObject, FlutterPlugin {
                         result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
                     }
                 }
-            }
-
-            if needsBackgroundQueue {
-                DispatchQueue.global(qos: .userInitiated).async {
-                    signingWork()
-                }
-            } else {
-                signingWork()
             }
         }
     }
@@ -1394,9 +1396,12 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         case "heif": return "image/heif"
         case "gif": return "image/gif"
         case "tiff", "tif": return "image/tiff"
-        case "mp4": return "video/mp4"
+        case "mp4", "m4v": return "video/mp4"
         case "mov": return "video/quicktime"
+        case "m4a": return "audio/mp4"
+        case "mp3": return "audio/mpeg"
         case "pdf": return "application/pdf"
+        case "svg": return "image/svg+xml"
         default: return "application/octet-stream"
         }
     }
