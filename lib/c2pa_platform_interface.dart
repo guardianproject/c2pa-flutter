@@ -110,9 +110,7 @@ abstract class C2paPlatform extends PlatformInterface {
   /// Returns whether the manifest at [path] is embedded in the file (true) or
   /// only referenced by a remote URL (false). Returns false when no manifest is present.
   Future<bool> isManifestEmbedded(String path, {String? mimeType}) {
-    throw UnimplementedError(
-      'isManifestEmbedded() has not been implemented.',
-    );
+    throw UnimplementedError('isManifestEmbedded() has not been implemented.');
   }
 
   /// Returns the list of MIME types supported for reading.

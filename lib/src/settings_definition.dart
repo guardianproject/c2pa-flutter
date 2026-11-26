@@ -572,11 +572,7 @@ class TimeStampSettings {
   /// The scope for fetching timestamps.
   final TimeStampFetchScope? fetchScope;
 
-  const TimeStampSettings({
-    this.enabled,
-    this.skipExisting,
-    this.fetchScope,
-  });
+  const TimeStampSettings({this.enabled, this.skipExisting, this.fetchScope});
 
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{};

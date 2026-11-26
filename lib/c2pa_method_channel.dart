@@ -99,10 +99,10 @@ class MethodChannelC2pa extends C2paPlatform {
 
   @override
   Future<bool> isManifestEmbedded(String path, {String? mimeType}) async {
-    final result = await methodChannel.invokeMethod<bool>('isManifestEmbedded', {
-      'path': path,
-      'mimeType': mimeType,
-    });
+    final result = await methodChannel.invokeMethod<bool>(
+      'isManifestEmbedded',
+      {'path': path, 'mimeType': mimeType},
+    );
     return result ?? false;
   }
 
