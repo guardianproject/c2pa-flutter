@@ -25,37 +25,161 @@ import 'package:meta/meta.dart';
 // Enums
 // =============================================================================
 
-/// Standard C2PA action identifiers
+/// Standard C2PA action identifiers.
 ///
 /// These represent the predefined actions in the C2PA specification.
 /// Use [value] to get the string representation for JSON serialization.
+///
+/// This list is kept in sync with the native c2pa-ios and c2pa-android SDKs
+/// (both at v0.0.9 as of this writing) — 33 `c2pa.*` actions plus 11 `font.*`
+/// actions from the Font Content Specification.
 enum PredefinedAction {
-  created('c2pa.created'),
-  edited('c2pa.edited'),
+  /// (visible) Textual content was inserted into the asset, such as on a text
+  /// layer or as a caption.
+  addedText('c2pa.addedText'),
+
+  /// Changes to tone, saturation, etc.
+  adjustedColor('c2pa.adjustedColor'),
+
+  /// Reduced or increased playback speed of a video or audio track.
+  changedSpeed('c2pa.changedSpeed'),
+
+  /// Deprecated — use [adjustedColor].
+  @Deprecated('Use PredefinedAction.adjustedColor')
+  colorAdjustments('c2pa.color_adjustments'),
+
+  /// The format of the asset was changed.
   converted('c2pa.converted'),
-  compressed('c2pa.compressed'),
+
+  /// The asset was first created.
+  created('c2pa.created'),
+
+  /// Areas of the asset's digital content were cropped out.
   cropped('c2pa.cropped'),
+
+  /// Areas of the asset's digital content were deleted.
+  deleted('c2pa.deleted'),
+
+  /// Changes using drawing tools including brushes or eraser.
   drawing('c2pa.drawing'),
+
+  /// Changes were made to audio, usually one or more tracks of a composite
+  /// asset.
+  dubbed('c2pa.dubbed'),
+
+  /// Generalized actions that would be considered editorial transformations
+  /// of the content.
+  edited('c2pa.edited'),
+
+  /// Modifications to asset metadata or a metadata assertion but not the
+  /// asset's digital content.
+  editedMetadata('c2pa.edited.metadata'),
+
+  /// Applied enhancements such as noise reduction, multi-band compression, or
+  /// sharpening that represent non-editorial transformations of the content.
+  enhanced('c2pa.enhanced'),
+
+  /// Changes to appearance with applied filters, styles, etc.
   filtered('c2pa.filtered'),
+
+  /// Final production step where assets are prepared for distribution.
+  mastered('c2pa.mastered'),
+
+  /// Multiple audio ingredients (stems, vocals, drums, etc.) are combined
+  /// and transformed.
+  mixed('c2pa.mixed'),
+
+  /// An existing asset was opened and is being set as the parentOf ingredient.
   opened('c2pa.opened'),
+
+  /// Changes to the direction and position of content.
   orientation('c2pa.orientation'),
+
+  /// Added/Placed one or more componentOf ingredient(s) into the asset.
   placed('c2pa.placed'),
+
+  /// Asset is released to a wider audience.
   published('c2pa.published'),
+
+  /// One or more assertions were redacted.
   redacted('c2pa.redacted'),
+
+  /// Components from one or more ingredients were combined in a
+  /// transformative way.
+  remixed('c2pa.remixed'),
+
+  /// A componentOf ingredient was removed.
   removed('c2pa.removed'),
+
+  /// A conversion of one packaging or container format to another.
+  /// Content is repackaged without transcoding.
   repackaged('c2pa.repackaged'),
+
+  /// Changes to either content dimensions, its file size or both.
   resized('c2pa.resized'),
+
+  /// Dimensions were changed while maintaining aspect ratio.
+  resizedProportional('c2pa.resized.proportional'),
+
+  /// A conversion of one encoding to another, including resolution scaling,
+  /// bitrate adjustment and encoding format change.
   transcoded('c2pa.transcoded'),
+
+  /// Changes to the language of the content.
   translated('c2pa.translated'),
+
+  /// Removal of a temporal range of the content.
+  trimmed('c2pa.trimmed'),
+
+  /// Something happened, but the claim_generator cannot specify what.
+  unknown('c2pa.unknown'),
+
+  /// An invisible watermark was inserted into the digital content for the
+  /// purpose of creating a soft binding.
   watermarked('c2pa.watermarked'),
-  aiGenerated('c2pa.ai_generated'),
-  aiTrained('c2pa.ai_trained'),
-  derivedFrom('c2pa.derived_from'),
-  color('c2pa.color'),
-  combined('c2pa.combined'),
-  compositeUsed('c2pa.composite_used'),
-  contentSummary('c2pa.content_summary'),
-  adjustments('c2pa.adjustments');
+
+  /// An invisible watermark was inserted that is cryptographically bound to
+  /// this manifest (soft binding).
+  watermarkedBound('c2pa.watermarked.bound'),
+
+  /// An invisible watermark was inserted that is NOT cryptographically bound
+  /// to this manifest.
+  watermarkedUnbound('c2pa.watermarked.unbound'),
+
+  // Font Content Specification actions.
+
+  /// Characters or character sets were added to the font.
+  fontCharactersAdded('font.charactersAdded'),
+
+  /// Characters or character sets were deleted from the font.
+  fontCharactersDeleted('font.charactersDeleted'),
+
+  /// Characters were both added and deleted from the font.
+  fontCharactersModified('font.charactersModified'),
+
+  /// A font was instantiated from a variable font.
+  fontCreatedFromVariableFont('font.createdFromVariableFont'),
+
+  /// The font was edited (catch-all).
+  fontEdited('font.edited'),
+
+  /// Hinting was applied to the font.
+  fontHinted('font.hinted'),
+
+  /// A combination of antecedent fonts.
+  fontMerged('font.merged'),
+
+  /// An OpenType feature was added.
+  fontOpenTypeFeatureAdded('font.openTypeFeatureAdded'),
+
+  /// An OpenType feature was modified.
+  fontOpenTypeFeatureModified('font.openTypeFeatureModified'),
+
+  /// An OpenType feature was removed.
+  fontOpenTypeFeatureRemoved('font.openTypeFeatureRemoved'),
+
+  /// The font was stripped to a sub-group of characters.
+  fontSubset('font.subset');
 
   const PredefinedAction(this.value);
   final String value;
@@ -1034,16 +1158,22 @@ class Action {
     this.reason,
   });
 
-  /// Create a "created" action
+  /// Create a "created" action.
+  ///
+  /// For AI-generated content, set [sourceType] to
+  /// [DigitalSourceType.trainedAlgorithmicMedia] (or another AI-related source
+  /// type) — this is the spec-compliant way to tag AI-generated assets.
   factory Action.created({
     DigitalSourceType? sourceType,
     String? softwareAgent,
+    Map<String, String>? parameters,
     String? when,
   }) {
     return Action(
       action: PredefinedAction.created.value,
       digitalSourceType: sourceType?.url,
       softwareAgent: softwareAgent,
+      parameters: parameters,
       when: when,
     );
   }
@@ -1130,22 +1260,6 @@ class Action {
       softwareAgent: softwareAgent,
       changes: changes,
       related: related,
-      when: when,
-    );
-  }
-
-  /// Create an "AI generated" action
-  factory Action.aiGenerated({
-    DigitalSourceType? sourceType,
-    String? softwareAgent,
-    Map<String, String>? parameters,
-    String? when,
-  }) {
-    return Action(
-      action: PredefinedAction.aiGenerated.value,
-      digitalSourceType: sourceType?.url,
-      softwareAgent: softwareAgent,
-      parameters: parameters,
       when: when,
     );
   }
@@ -1908,7 +2022,7 @@ class ManifestDefinition {
       assertions: [
         ActionsAssertion(
           actions: [
-            Action.aiGenerated(
+            Action.created(
               sourceType: sourceType,
               softwareAgent: claimGenerator.claimGeneratorString,
               parameters: parameters,

@@ -18,8 +18,15 @@ import C2PA
 /// Since the c2pa-ios library uses a global settings load rather than an
 /// object, we store the accumulated settings strings so they can be
 /// re-applied (merged) when creating signers or contexts.
+///
+/// `currentJSON` tracks the most recently applied full JSON representation
+/// so that `settingsSetValue` can parse → modify → re-serialize → re-apply
+/// without depending on C2PASettings's private state. `setValue` normalizes
+/// to a full JSON load in the segments list, so chronological replay
+/// reproduces the final state.
 private struct SettingsEntry {
     var segments: [(settings: String, format: String)]
+    var currentJSON: String
 }
 
 public class C2paPlugin: NSObject, FlutterPlugin {
@@ -67,6 +74,10 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             handleExtractResource(call: call, result: result)
         case "readIngredientFile":
             handleReadIngredientFile(call: call, result: result)
+        case "getRemoteUrl":
+            handleGetRemoteUrl(call: call, result: result)
+        case "isManifestEmbedded":
+            handleIsManifestEmbedded(call: call, result: result)
         case "signBytes":
             handleSignBytes(call: call, result: result)
         case "signFile":
@@ -138,6 +149,27 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         // Certificate Manager
         case "createSelfSignedCertificateChain":
             handleCreateSelfSignedCertificateChain(call: call, result: result)
+
+        case "createHashedPlaceholder",
+             "signHashedEmbeddable",
+             "formatEmbeddable":
+            result(FlutterError(
+                code: "NOT_IMPLEMENTED_IOS",
+                message: "\(call.method) is not yet implemented on iOS. " +
+                    "Blocked on c2pa-ios exposing Builder.dataHashedPlaceholder / " +
+                    "signDataHashedEmbeddable / format_embeddable_manifest as public Swift API.",
+                details: nil
+            ))
+        case "importKey",
+             "createCSR",
+             "enrollHardwareKey":
+            result(FlutterError(
+                code: "NOT_IMPLEMENTED_IOS",
+                message: "\(call.method) is not yet implemented on iOS (scheduled). " +
+                    "Flutter API is defined and Android works; iOS plugin handler pending.",
+                details: nil
+            ))
+
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -310,6 +342,44 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         }
     }
 
+    private func handleGetRemoteUrl(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "Path is required", details: nil))
+            return
+        }
+
+        let mimeType = (args["mimeType"] as? String)
+            ?? mimeTypeForExtension((path as NSString).pathExtension.lowercased())
+
+        do {
+            let stream = try Stream(readFrom: URL(fileURLWithPath: path))
+            let reader = try Reader(format: mimeType, stream: stream)
+            result(reader.remote()?.absoluteString)
+        } catch {
+            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
+    private func handleIsManifestEmbedded(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "Path is required", details: nil))
+            return
+        }
+
+        let mimeType = (args["mimeType"] as? String)
+            ?? mimeTypeForExtension((path as NSString).pathExtension.lowercased())
+
+        do {
+            let stream = try Stream(readFrom: URL(fileURLWithPath: path))
+            let reader = try Reader(format: mimeType, stream: stream)
+            result(reader.isEmbedded())
+        } catch {
+            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
     // MARK: - Signer Creation
 
     private func createSigner(_ signerMap: [String: Any], result: @escaping FlutterResult, completion: @escaping (Signer) -> Void) {
@@ -362,14 +432,14 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             throw C2PAError.api("Invalid PEM signer configuration")
         }
 
-        let tsaUrl = signerMap["tsaUrl"] as? String
+        let tsaUrl = (signerMap["tsaUrl"] as? String).flatMap(URL.init(string:))
         let algorithm = mapAlgorithm(algorithmStr)
 
         return try Signer(
             certsPEM: certificatePem,
             privateKeyPEM: privateKeyPem,
             algorithm: algorithm,
-            tsaURL: tsaUrl
+            tsa: tsaUrl
         )
     }
 
@@ -380,13 +450,13 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             throw C2PAError.api("Invalid keychain signer configuration")
         }
 
-        let tsaUrl = signerMap["tsaUrl"] as? String
+        let tsaUrl = (signerMap["tsaUrl"] as? String).flatMap(URL.init(string:))
         let algorithm = mapAlgorithm(algorithmStr)
 
         return try Signer(
             algorithm: algorithm,
             certificateChainPEM: certificateChainPem,
-            tsaURL: tsaUrl,
+            tsa: tsaUrl,
             keychainKeyTag: keyAlias
         )
     }
@@ -397,7 +467,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             throw C2PAError.api("Invalid Secure Enclave signer configuration")
         }
 
-        let tsaUrl = signerMap["tsaUrl"] as? String
+        let tsaUrl = (signerMap["tsaUrl"] as? String).flatMap(URL.init(string:))
         let requireUserAuth = signerMap["requireUserAuthentication"] as? Bool ?? false
 
         var accessControl: SecAccessControlCreateFlags = [.privateKeyUsage]
@@ -413,7 +483,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         return try Signer(
             algorithm: .es256,
             certificateChainPEM: certificateChainPem,
-            tsaURL: tsaUrl,
+            tsa: tsaUrl,
             secureEnclaveConfig: config
         )
     }
@@ -425,13 +495,13 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             throw C2PAError.api("Invalid callback signer configuration")
         }
 
-        let tsaUrl = signerMap["tsaUrl"] as? String
+        let tsaUrl = (signerMap["tsaUrl"] as? String).flatMap(URL.init(string:))
         let algorithm = mapAlgorithm(algorithmStr)
 
         return try Signer(
             algorithm: algorithm,
             certificateChainPEM: certificateChainPem,
-            tsaURL: tsaUrl
+            tsa: tsaUrl
         ) { [weak self] dataToSign in
             guard let self = self, let channel = self.methodChannel else {
                 throw C2PAError.api("Method channel not available")
@@ -470,7 +540,8 @@ public class C2paPlugin: NSObject, FlutterPlugin {
     }
 
     private func createRemoteSigner(_ signerMap: [String: Any], completion: @escaping (Result<Signer, Error>) -> Void) {
-        guard let configurationUrl = signerMap["configurationUrl"] as? String else {
+        guard let configurationUrl = signerMap["configurationUrl"] as? String,
+              let configurationEndpoint = URL(string: configurationUrl) else {
             completion(.failure(C2PAError.api("Invalid remote signer configuration")))
             return
         }
@@ -479,7 +550,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         let customHeaders = signerMap["customHeaders"] as? [String: String] ?? [:]
 
         let webServiceSigner = WebServiceSigner(
-            configurationURL: configurationUrl,
+            configurationEndpoint: configurationEndpoint,
             bearerToken: bearerToken,
             headers: customHeaders
         )
@@ -669,7 +740,8 @@ public class C2paPlugin: NSObject, FlutterPlugin {
     private func handleBuilderSetRemoteUrl(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard let args = call.arguments as? [String: Any],
               let handle = args["handle"] as? Int,
-              let url = args["url"] as? String else {
+              let url = args["url"] as? String,
+              let remoteURL = URL(string: url) else {
             result(FlutterError(code: "INVALID_ARGUMENT", message: "handle and url are required", details: nil))
             return
         }
@@ -680,7 +752,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         }
 
         do {
-            try builder.setRemoteURL(url)
+            try builder.setRemote(url: remoteURL)
             result(nil)
         } catch {
             result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
@@ -779,11 +851,13 @@ public class C2paPlugin: NSObject, FlutterPlugin {
                let actionDict = try JSONSerialization.jsonObject(with: actionData) as? [String: Any],
                let actionName = actionDict["action"] as? String {
                 let digitalSourceTypeStr = actionDict["digitalSourceType"] as? String
+                let parameters = (actionDict["parameters"] as? [String: Any])?
+                    .mapValues { AnyCodable($0) }
                 let action = Action(
                     action: actionName,
                     digitalSourceType: digitalSourceTypeStr,
                     softwareAgent: actionDict["softwareAgent"] as? String,
-                    parameters: actionDict["parameters"] as? [String: String]
+                    parameters: parameters
                 )
                 try builder.addAction(action)
             }
@@ -976,8 +1050,13 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             return
         }
 
+        guard let settingsFormat = Signer.SettingsFormat(rawValue: format.lowercased()) else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "format must be 'json' or 'toml'", details: nil))
+            return
+        }
+
         do {
-            try Signer.loadSettings(settings, format: format)
+            try Signer.loadSettings(settings, format: settingsFormat)
             result(nil)
         } catch {
             result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
@@ -987,7 +1066,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
     // MARK: - Settings Handle API
 
     private func handleCreateSettings(result: @escaping FlutterResult) {
-        let handle = storeSettings(SettingsEntry(segments: []))
+        let handle = storeSettings(SettingsEntry(segments: [], currentJSON: "{\"version\":1}"))
         result(handle)
     }
 
@@ -1000,7 +1079,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             return
         }
 
-        guard format.lowercased() == "json" || format.lowercased() == "toml" else {
+        guard let settingsFormat = Signer.SettingsFormat(rawValue: format.lowercased()) else {
             result(FlutterError(code: "INVALID_ARGUMENT", message: "format must be 'json' or 'toml'", details: nil))
             return
         }
@@ -1011,12 +1090,15 @@ public class C2paPlugin: NSObject, FlutterPlugin {
             result(FlutterError(code: "INVALID_HANDLE", message: "Settings not found", details: nil))
             return
         }
-        settingsMap[handle]!.segments.append((settings: settings, format: format.lowercased()))
+        settingsMap[handle]!.segments.append((settings: settings, format: settingsFormat.rawValue))
+        if settingsFormat == .json {
+            settingsMap[handle]!.currentJSON = settings
+        }
         settingsLock.unlock()
 
         // Also apply the settings globally so they take effect immediately
         do {
-            try Signer.loadSettings(settings, format: format.lowercased())
+            try Signer.loadSettings(settings, format: settingsFormat)
             result(nil)
         } catch {
             result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
@@ -1024,15 +1106,66 @@ public class C2paPlugin: NSObject, FlutterPlugin {
     }
 
     private func handleSettingsSetValue(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        // The c2pa-ios library does not expose a method to set individual
-        // settings values. Settings are loaded as complete JSON or TOML
-        // documents via Signer.loadSettings(). Individual key/value
-        // setting is not supported on iOS.
-        result(FlutterError(
-            code: "NOT_SUPPORTED",
-            message: "settingsSetValue is not supported on iOS. Use settingsUpdateFromString to load a complete settings document.",
-            details: nil
-        ))
+        guard let args = call.arguments as? [String: Any],
+              let handle = args["handle"] as? Int,
+              let path = args["path"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENT", message: "handle and path are required", details: nil))
+            return
+        }
+        let value: Any = args["value"] ?? NSNull()
+
+        settingsLock.lock()
+        guard var entry = settingsMap[handle] else {
+            settingsLock.unlock()
+            result(FlutterError(code: "INVALID_HANDLE", message: "Settings not found", details: nil))
+            return
+        }
+        let currentJSON = entry.currentJSON
+        settingsLock.unlock()
+
+        do {
+            guard let data = currentJSON.data(using: .utf8),
+                  var dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw C2PAError.api("Current settings are not a valid JSON object")
+            }
+
+            let components = path.split(separator: ".").map(String.init)
+            guard !components.isEmpty else {
+                throw C2PAError.api("Path must not be empty")
+            }
+            Self.setNestedValue(&dict, components: components, value: value)
+
+            let updatedData = try JSONSerialization.data(withJSONObject: dict)
+            guard let updatedString = String(data: updatedData, encoding: .utf8) else {
+                throw C2PAError.utf8
+            }
+
+            try Signer.loadSettings(updatedString, format: .json)
+
+            settingsLock.lock()
+            entry = settingsMap[handle] ?? entry
+            entry.currentJSON = updatedString
+            entry.segments.append((settings: updatedString, format: "json"))
+            settingsMap[handle] = entry
+            settingsLock.unlock()
+
+            result(nil)
+        } catch let error as C2PAError {
+            result(FlutterError(code: "C2PA_ERROR", message: error.errorDescription, details: nil))
+        } catch {
+            result(FlutterError(code: "C2PA_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
+    private static func setNestedValue(_ dict: inout [String: Any], components: [String], value: Any) {
+        guard let key = components.first else { return }
+        if components.count == 1 {
+            dict[key] = value
+        } else {
+            var nested = dict[key] as? [String: Any] ?? [:]
+            setNestedValue(&nested, components: Array(components.dropFirst()), value: value)
+            dict[key] = nested
+        }
     }
 
     private func handleSettingsDispose(call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -1050,7 +1183,7 @@ public class C2paPlugin: NSObject, FlutterPlugin {
 
     private func handleCreateContext(result: @escaping FlutterResult) {
         // Create an empty settings entry to back this context
-        let settingsHandle = storeSettings(SettingsEntry(segments: []))
+        let settingsHandle = storeSettings(SettingsEntry(segments: [], currentJSON: "{\"version\":1}"))
         let contextHandle = storeContext(settingsHandle: settingsHandle)
         result(contextHandle)
     }
@@ -1460,7 +1593,8 @@ public class C2paPlugin: NSObject, FlutterPlugin {
         }
 
         for segment in entry.segments {
-            try Signer.loadSettings(segment.settings, format: segment.format)
+            guard let format = Signer.SettingsFormat(rawValue: segment.format) else { continue }
+            try Signer.loadSettings(segment.settings, format: format)
         }
     }
 

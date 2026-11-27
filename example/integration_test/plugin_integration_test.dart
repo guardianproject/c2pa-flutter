@@ -190,7 +190,9 @@ void main() {
 
         final json = manifest.toJsonString();
         expect(json, contains('AI Art'));
-        expect(json, contains('c2pa.ai_generated'));
+        // AI-generated content is a created action with the
+        // trainedAlgorithmicMedia source type; there is no dedicated action.
+        expect(json, contains('c2pa.created'));
         expect(json, contains('trainedAlgorithmicMedia'));
         expect(json, contains('c2pa.training-mining'));
       });
@@ -207,10 +209,13 @@ void main() {
         final cropped = Action.cropped();
         expect(cropped.action, 'c2pa.cropped');
 
-        final aiGenerated = Action.aiGenerated(
+        // AI-generated content is tagged via DigitalSourceType on a created
+        // action (spec-compliant), not via a custom action string.
+        final aiGenerated = Action.created(
           sourceType: DigitalSourceType.trainedAlgorithmicMedia,
         );
-        expect(aiGenerated.action, 'c2pa.ai_generated');
+        expect(aiGenerated.action, 'c2pa.created');
+        expect(aiGenerated.digitalSourceType, contains('trainedAlgorithmicMedia'));
       });
 
       testWidgets('Ingredient factories create correct ingredients', (tester) async {

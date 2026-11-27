@@ -1,3 +1,14 @@
+## 0.0.4
+
+* Switch to the official contentauth c2pa-android and c2pa-ios 0.0.9 releases (from the redaranj forks)
+* Add `getRemoteUrl` and `isManifestEmbedded` to the reader API
+* Add `addIngredientFromFile` to the builder, reading the ingredient natively instead of passing bytes through Dart
+* Add a typed `C2paSettingsDefinition`, with `C2paSettings.fromDefinition` and `updateFromDefinition`
+* Support `settingsSetValue` on iOS
+* Align `PredefinedAction` with the C2PA spec action list, adding the font and watermark actions
+* **Breaking:** remove `Action.aiGenerated`, `PredefinedAction.aiGenerated` and other non-spec actions; tag AI-generated content with `Action.created(sourceType: DigitalSourceType.trainedAlgorithmicMedia)` instead
+* iOS returns `NOT_IMPLEMENTED_IOS` for the hashed-signing and key-import/CSR/hardware-enrollment calls, which are not yet available there
+
 ## 0.0.3
 
 * Fix Android OOM crashes in file-based signing by replacing readBytes()/ByteArrayStream with FileStream

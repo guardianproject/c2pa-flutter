@@ -332,7 +332,9 @@ void main() {
 
       final call = mockPlatform.methodCalls.last;
       expect(call.arguments!['manifestJson'], contains('AI Generated Image'));
-      expect(call.arguments!['manifestJson'], contains('c2pa.ai_generated'));
+      // AI-generated content uses c2pa.created + trainedAlgorithmicMedia source
+      // type (spec-compliant); no dedicated action identifier exists.
+      expect(call.arguments!['manifestJson'], contains('c2pa.created'));
       expect(
         call.arguments!['manifestJson'],
         contains('trainedAlgorithmicMedia'),

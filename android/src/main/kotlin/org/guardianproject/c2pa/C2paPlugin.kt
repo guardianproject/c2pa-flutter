@@ -52,6 +52,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 class C2paPlugin : FlutterPlugin, MethodCallHandler {
     private lateinit var channel: MethodChannel
@@ -94,6 +96,8 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
             "readBytesDetailed" -> handleReadBytesDetailed(call, result)
             "extractResource" -> handleExtractResource(call, result)
             "readIngredientFile" -> handleReadIngredientFile(call, result)
+            "getRemoteUrl" -> handleGetRemoteUrl(call, result)
+            "isManifestEmbedded" -> handleIsManifestEmbedded(call, result)
             "getSupportedReadMimeTypes" -> handleGetSupportedReadMimeTypes(result)
             "getSupportedSignMimeTypes" -> handleGetSupportedSignMimeTypes(result)
 
@@ -302,6 +306,52 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
         try {
             val json = C2PA.readIngredientFile(path, dataDir)
             result.success(json)
+        } catch (e: C2PAError) {
+            result.error("C2PA_ERROR", e.message, null)
+        } catch (e: Exception) {
+            result.error("ERROR", e.message, null)
+        }
+    }
+
+    private fun handleGetRemoteUrl(call: MethodCall, result: Result) {
+        val path = call.argument<String>("path")
+        if (path == null) {
+            result.error("INVALID_ARGUMENT", "Path is required", null)
+            return
+        }
+        val mimeType = call.argument<String>("mimeType") ?: getMimeTypeFromPath(path)
+        try {
+            val stream = FileStream(File(path), FileStream.Mode.READ, createIfNeeded = false)
+            val reader = Reader.fromStream(mimeType, stream)
+            try {
+                result.success(reader.remoteUrl())
+            } finally {
+                reader.close()
+                stream.close()
+            }
+        } catch (e: C2PAError) {
+            result.error("C2PA_ERROR", e.message, null)
+        } catch (e: Exception) {
+            result.error("ERROR", e.message, null)
+        }
+    }
+
+    private fun handleIsManifestEmbedded(call: MethodCall, result: Result) {
+        val path = call.argument<String>("path")
+        if (path == null) {
+            result.error("INVALID_ARGUMENT", "Path is required", null)
+            return
+        }
+        val mimeType = call.argument<String>("mimeType") ?: getMimeTypeFromPath(path)
+        try {
+            val stream = FileStream(File(path), FileStream.Mode.READ, createIfNeeded = false)
+            val reader = Reader.fromStream(mimeType, stream)
+            try {
+                result.success(reader.isEmbedded())
+            } finally {
+                reader.close()
+                stream.close()
+            }
         } catch (e: C2PAError) {
             result.error("C2PA_ERROR", e.message, null)
         } catch (e: Exception) {
@@ -747,20 +797,20 @@ class C2paPlugin : FlutterPlugin, MethodCallHandler {
             val digitalSourceType = json.optString("digitalSourceType", null)
 
             // Parse parameters if present
-            val parameters = mutableMapOf<String, String>()
+            val parameters = mutableMapOf<String, JsonElement>()
             if (json.has("parameters")) {
                 val paramsJson = json.getJSONObject("parameters")
                 val keys = paramsJson.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
-                    parameters[key] = paramsJson.optString(key, "")
+                    parameters[key] = JsonPrimitive(paramsJson.optString(key, ""))
                 }
             }
 
             val action = Action(
                 actionName,
                 digitalSourceType,
-                softwareAgent,
+                softwareAgent?.let { JsonPrimitive(it) },
                 if (parameters.isEmpty()) null else parameters
             )
 
