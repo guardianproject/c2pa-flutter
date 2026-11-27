@@ -190,7 +190,9 @@ void main() {
 
         final json = manifest.toJsonString();
         expect(json, contains('AI Art'));
-        expect(json, contains('c2pa.ai_generated'));
+        // AI-generated content is a created action with the
+        // trainedAlgorithmicMedia source type; there is no dedicated action.
+        expect(json, contains('c2pa.created'));
         expect(json, contains('trainedAlgorithmicMedia'));
         expect(json, contains('c2pa.training-mining'));
       });
