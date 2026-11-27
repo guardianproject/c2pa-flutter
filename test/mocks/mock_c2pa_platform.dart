@@ -117,18 +117,31 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   // Reader API - Basic
   // =============================================================================
 
-  @override
-  Future<String?> readFile(String path) async {
-    _recordCall('readFile', {'path': path});
-    _checkError();
-    return mockManifestJson ?? _generateMockManifestJson(path);
+  /// When true, every read throws [C2paManifestNotFoundException], as the
+  /// native SDKs do for an asset without content credentials.
+  bool mockNoManifest = false;
+
+  String _manifestOrThrow(String source) {
+    if (mockNoManifest) {
+      throw const C2paManifestNotFoundException(
+        'ManifestNotFound: no JUMBF data found',
+      );
+    }
+    return mockManifestJson ?? _generateMockManifestJson(source);
   }
 
   @override
-  Future<String?> readBytes(Uint8List data, String mimeType) async {
+  Future<String> readFile(String path) async {
+    _recordCall('readFile', {'path': path});
+    _checkError();
+    return _manifestOrThrow(path);
+  }
+
+  @override
+  Future<String> readBytes(Uint8List data, String mimeType) async {
     _recordCall('readBytes', {'dataLength': data.length, 'mimeType': mimeType});
     _checkError();
-    return mockManifestJson ?? _generateMockManifestJson('bytes');
+    return _manifestOrThrow('bytes');
   }
 
   /// Remote URL returned by the mock for [getRemoteUrl]; null means embedded manifest.
@@ -156,60 +169,113 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   // =============================================================================
 
   @override
-  Future<String?> readFileDetailed(
+  Future<String> readFileDetailed(
     String path,
-    bool detailed,
-    String? dataDir,
-  ) async {
+    bool detailed, {
+    int? contextHandle,
+  }) async {
     _recordCall('readFileDetailed', {
       'path': path,
       'detailed': detailed,
-      'dataDir': dataDir,
+      'contextHandle': contextHandle,
     });
     _checkError();
-    return mockManifestJson ?? _generateMockManifestJson(path);
+    return _manifestOrThrow(path);
   }
 
   @override
-  Future<String?> readBytesDetailed(
+  Future<String> readBytesDetailed(
     Uint8List data,
     String mimeType,
-    bool detailed,
-  ) async {
+    bool detailed, {
+    int? contextHandle,
+  }) async {
     _recordCall('readBytesDetailed', {
       'dataLength': data.length,
       'mimeType': mimeType,
       'detailed': detailed,
+      'contextHandle': contextHandle,
     });
     _checkError();
-    return mockManifestJson ?? _generateMockManifestJson('bytes');
+    return _manifestOrThrow('bytes');
   }
 
   @override
-  Future<Uint8List?> extractResource(
+  Future<Uint8List> extractResource(
     Uint8List data,
     String mimeType,
-    String uri,
-  ) async {
+    String uri, {
+    int? contextHandle,
+  }) async {
     _recordCall('extractResource', {
       'dataLength': data.length,
       'mimeType': mimeType,
       'uri': uri,
+      'contextHandle': contextHandle,
     });
     _checkError();
     return mockResourceData ??
         Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]); // Minimal JPEG header
   }
 
+  /// crJSON returned by [readCrJson].
+  String mockCrJson = '{"@context": "crjson", "manifests": []}';
+
   @override
-  Future<String?> readIngredientFile(String path, String? dataDir) async {
-    _recordCall('readIngredientFile', {'path': path, 'dataDir': dataDir});
-    _checkError();
-    return jsonEncode({
-      'title': 'Test Ingredient',
-      'format': 'image/jpeg',
-      'relationship': 'componentOf',
+  Future<String> readCrJson({
+    String? path,
+    Uint8List? data,
+    String? mimeType,
+    int? contextHandle,
+  }) async {
+    _recordCall('readCrJson', {
+      'path': path,
+      'dataLength': data?.length,
+      'mimeType': mimeType,
+      'contextHandle': contextHandle,
     });
+    _checkError();
+    return mockCrJson;
+  }
+
+  @override
+  Future<String> readWithManifest({
+    String? path,
+    Uint8List? data,
+    String? mimeType,
+    required Uint8List manifestData,
+    bool detailed = false,
+    int? contextHandle,
+  }) async {
+    _recordCall('readWithManifest', {
+      'path': path,
+      'dataLength': data?.length,
+      'mimeType': mimeType,
+      'manifestDataLength': manifestData.length,
+      'detailed': detailed,
+      'contextHandle': contextHandle,
+    });
+    _checkError();
+    return mockManifestJson ?? _generateMockManifestJson(path ?? 'bytes');
+  }
+
+  @override
+  Future<String> readFragment({
+    required String initPath,
+    required String fragmentPath,
+    String? mimeType,
+    bool detailed = false,
+    int? contextHandle,
+  }) async {
+    _recordCall('readFragment', {
+      'initPath': initPath,
+      'fragmentPath': fragmentPath,
+      'mimeType': mimeType,
+      'detailed': detailed,
+      'contextHandle': contextHandle,
+    });
+    _checkError();
+    return mockManifestJson ?? _generateMockManifestJson(initPath);
   }
 
   @override
@@ -275,8 +341,14 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   // =============================================================================
 
   @override
-  Future<ManifestBuilder> createBuilder(String manifestJson) async {
-    _recordCall('createBuilder', {'manifestJson': manifestJson});
+  Future<ManifestBuilder> createBuilder(
+    String manifestJson, {
+    int? contextHandle,
+  }) async {
+    _recordCall('createBuilder', {
+      'manifestJson': manifestJson,
+      'contextHandle': contextHandle,
+    });
     _checkError();
 
     final handle = _nextBuilderId++;
@@ -287,10 +359,12 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
 
   @override
   Future<ManifestBuilder> createBuilderFromArchive(
-    Uint8List archiveData,
-  ) async {
+    Uint8List archiveData, {
+    int? contextHandle,
+  }) async {
     _recordCall('createBuilderFromArchive', {
       'archiveDataLength': archiveData.length,
+      'contextHandle': contextHandle,
     });
     _checkError();
 
@@ -384,6 +458,37 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   }
 
   @override
+  Future<void> builderSetBasePath(int handle, String path) async {
+    _recordCall('builderSetBasePath', {'handle': handle, 'path': path});
+    _checkError();
+  }
+
+  @override
+  Future<void> builderAddIngredientFromArchive(
+    int handle,
+    Uint8List archive,
+  ) async {
+    _recordCall('builderAddIngredientFromArchive', {
+      'handle': handle,
+      'archiveLength': archive.length,
+    });
+    _checkError();
+  }
+
+  @override
+  Future<Uint8List> builderWriteIngredientArchive(
+    int handle,
+    String ingredientId,
+  ) async {
+    _recordCall('builderWriteIngredientArchive', {
+      'handle': handle,
+      'ingredientId': ingredientId,
+    });
+    _checkError();
+    return Uint8List.fromList([0x50, 0x4B, 0x03, 0x04]);
+  }
+
+  @override
   Future<void> builderAddAction(int handle, String actionJson) async {
     _recordCall('builderAddAction', {
       'handle': handle,
@@ -406,14 +511,14 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
     int handle,
     Uint8List sourceData,
     String mimeType,
-    C2paSigner signer,
+    C2paSigner? signer,
   ) async {
     _recordCall('builderSign', {
       'handle': handle,
       'sourceDataLength': sourceData.length,
       'mimeType': mimeType,
-      'algorithm': signer.algorithm.name,
-      'signerType': signer.runtimeType.toString(),
+      'algorithm': signer?.algorithm.name,
+      'signerType': signer?.runtimeType.toString(),
     });
     _checkError();
 
@@ -427,18 +532,129 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   }
 
   @override
-  Future<void> builderSignFile(
+  Future<BuilderFileSignResult> builderSignFile(
     int handle,
     String sourcePath,
     String destPath,
-    C2paSigner signer,
-  ) async {
+    C2paSigner? signer, {
+    String? mimeType,
+  }) async {
     _recordCall('builderSignFile', {
       'handle': handle,
       'sourcePath': sourcePath,
       'destPath': destPath,
-      'algorithm': signer.algorithm.name,
-      'signerType': signer.runtimeType.toString(),
+      'mimeType': mimeType,
+      'algorithm': signer?.algorithm.name,
+      'signerType': signer?.runtimeType.toString(),
+    });
+    _checkError();
+    return BuilderFileSignResult(
+      manifestBytes: mockManifestBytes,
+      manifestSize: mockManifestBytes?.length ?? 1000,
+    );
+  }
+
+  /// Placeholder size returned by [builderPlaceholder].
+  int mockPlaceholderSize = 2048;
+
+  /// Hash type returned by [builderHashType].
+  C2paHashType mockHashType = C2paHashType.dataHash;
+
+  @override
+  Future<bool> builderNeedsPlaceholder(int handle, String mimeType) async {
+    _recordCall('builderNeedsPlaceholder', {
+      'handle': handle,
+      'mimeType': mimeType,
+    });
+    _checkError();
+    return mockHashType != C2paHashType.boxHash;
+  }
+
+  @override
+  Future<Uint8List> builderPlaceholder(int handle, String mimeType) async {
+    _recordCall('builderPlaceholder', {'handle': handle, 'mimeType': mimeType});
+    _checkError();
+    return Uint8List(mockPlaceholderSize);
+  }
+
+  @override
+  Future<void> builderSetDataHashExclusions(
+    int handle,
+    List<DataHashExclusion> exclusions,
+  ) async {
+    _recordCall('builderSetDataHashExclusions', {
+      'handle': handle,
+      'exclusions': exclusions.map((e) => e.toList()).toList(),
+    });
+    _checkError();
+  }
+
+  @override
+  Future<void> builderUpdateHashFromBytes(
+    int handle,
+    String mimeType,
+    Uint8List data,
+  ) async {
+    _recordCall('builderUpdateHashFromBytes', {
+      'handle': handle,
+      'mimeType': mimeType,
+      'dataLength': data.length,
+    });
+    _checkError();
+  }
+
+  @override
+  Future<void> builderUpdateHashFromFile(
+    int handle,
+    String path, {
+    String? mimeType,
+  }) async {
+    _recordCall('builderUpdateHashFromFile', {
+      'handle': handle,
+      'path': path,
+      'mimeType': mimeType,
+    });
+    _checkError();
+  }
+
+  @override
+  Future<Uint8List> builderSignEmbeddable(int handle, String mimeType) async {
+    _recordCall('builderSignEmbeddable', {
+      'handle': handle,
+      'mimeType': mimeType,
+    });
+    _checkError();
+    return mockManifestBytes ?? Uint8List(mockPlaceholderSize);
+  }
+
+  @override
+  Future<C2paHashType> builderHashType(int handle, String mimeType) async {
+    _recordCall('builderHashType', {'handle': handle, 'mimeType': mimeType});
+    _checkError();
+    return mockHashType;
+  }
+
+  @override
+  Future<void> builderSetFixedSizeMerkle(int handle, int fixedSizeKb) async {
+    _recordCall('builderSetFixedSizeMerkle', {
+      'handle': handle,
+      'fixedSizeKb': fixedSizeKb,
+    });
+    _checkError();
+  }
+
+  @override
+  Future<void> builderHashMdatBytes(
+    int handle, {
+    required int mdatId,
+    required Uint8List data,
+    bool largeSize = false,
+  }) async {
+    _recordCall('builderHashMdatBytes', {
+      'handle': handle,
+      'mdatId': mdatId,
+      'dataLength': data.length,
+      'largeSize': largeSize,
     });
     _checkError();
   }
@@ -450,55 +666,20 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   }
 
   // =============================================================================
-  // Advanced Signing API
+  // Embeddable manifests
   // =============================================================================
 
   @override
-  Future<Uint8List> createHashedPlaceholder({
-    required int builderHandle,
-    required int reservedSize,
-    required String mimeType,
-  }) async {
-    _recordCall('createHashedPlaceholder', {
-      'handle': builderHandle,
-      'reservedSize': reservedSize,
-      'mimeType': mimeType,
-    });
-    _checkError();
-    return Uint8List(reservedSize);
-  }
-
-  @override
-  Future<Uint8List> signHashedEmbeddable({
-    required int builderHandle,
-    required C2paSigner signer,
-    required String dataHash,
-    required String mimeType,
-    Uint8List? assetData,
-  }) async {
-    _recordCall('signHashedEmbeddable', {
-      'handle': builderHandle,
-      'algorithm': signer.algorithm.name,
-      'signerType': signer.runtimeType.toString(),
-      'dataHash': dataHash,
-      'mimeType': mimeType,
-      'assetDataLength': assetData?.length,
-    });
-    _checkError();
-    return mockManifestBytes ?? Uint8List.fromList([0xC2, 0xAA, 0x00, 0x01]);
-  }
-
-  @override
-  Future<Uint8List> formatEmbeddable({
-    required String mimeType,
+  Future<Uint8List> composeManifest({
     required Uint8List manifestBytes,
+    required String mimeType,
   }) async {
-    _recordCall('formatEmbeddable', {
+    _recordCall('composeManifest', {
       'mimeType': mimeType,
       'manifestBytesLength': manifestBytes.length,
     });
     _checkError();
-    return manifestBytes;
+    return Uint8List.fromList([0xFF, 0xEB, ...manifestBytes]);
   }
 
   @override
@@ -598,7 +779,7 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   }
 
   @override
-  Future<void> settingsSetValue(int handle, String path, String value) async {
+  Future<void> settingsSetValue(int handle, String path, Object value) async {
     _recordCall('settingsSetValue', {
       'handle': handle,
       'path': path,
@@ -619,52 +800,42 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   // =============================================================================
 
   @override
-  Future<int> createContext() async {
-    _recordCall('createContext', null);
-    _checkError();
-
-    final handle = _nextContextId++;
-    contexts[handle] = MockContext(handle);
-    return handle;
-  }
-
-  @override
-  Future<int> createContextFromSettings(int settingsHandle) async {
-    _recordCall('createContextFromSettings', {
+  Future<int> createContext({
+    int? settingsHandle,
+    C2paSigner? signer,
+    void Function(C2paProgress progress)? onProgress,
+    C2paHttpResolver? httpResolver,
+  }) async {
+    _recordCall('createContext', {
       'settingsHandle': settingsHandle,
+      'signerType': signer?.runtimeType.toString(),
+      'progress': onProgress != null,
+      'httpResolver': httpResolver?.runtimeType.toString(),
     });
     _checkError();
 
     final handle = _nextContextId++;
-    contexts[handle] = MockContext(handle, settingsHandle: settingsHandle);
+    contexts[handle] = MockContext(
+      handle,
+      settingsHandle: settingsHandle,
+      signer: signer,
+      onProgress: onProgress,
+      httpResolver: httpResolver,
+    );
     return handle;
+  }
+
+  @override
+  Future<void> contextCancel(int handle) async {
+    _recordCall('contextCancel', {'handle': handle});
+    _checkError();
+    contexts[handle]?.cancelled = true;
   }
 
   @override
   Future<void> contextDispose(int handle) async {
     _recordCall('contextDispose', {'handle': handle});
     contexts.remove(handle);
-  }
-
-  // =============================================================================
-  // Enhanced Reader API - Context-based
-  // =============================================================================
-
-  @override
-  Future<String?> readFileWithContext(
-    String path,
-    int contextHandle,
-    bool detailed,
-    String? dataDir,
-  ) async {
-    _recordCall('readFileWithContext', {
-      'path': path,
-      'contextHandle': contextHandle,
-      'detailed': detailed,
-      'dataDir': dataDir,
-    });
-    _checkError();
-    return mockManifestJson ?? _generateMockManifestJson(path);
   }
 
   // =============================================================================
@@ -712,11 +883,11 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
   @override
   Future<String> createSelfSignedCertificateChain({
     required String keyAlias,
-    Map<String, dynamic>? config,
+    CertificateConfig? config,
   }) async {
     _recordCall('createSelfSignedCertificateChain', {
       'keyAlias': keyAlias,
-      'config': config,
+      'config': config?.toMap(),
     });
     _checkError();
     return mockCertificateChain;
@@ -748,10 +919,10 @@ class MockC2paPlatform extends C2paPlatform with MockPlatformInterfaceMixin {
               },
             },
           ],
-          'ingredients': [],
+          'ingredients': <Object>[],
         },
       },
-      'validation_status': [],
+      'validation_status': <Object>[],
     });
   }
 }
@@ -796,31 +967,49 @@ class MockBuilder implements ManifestBuilder {
   }
 
   @override
-  void setIntent(
+  Future<void> setIntent(
     ManifestIntent intent, [
     DigitalSourceType? digitalSourceType,
-  ]) {
+  ]) async {
     _checkDisposed();
     this.intent = intent;
     this.digitalSourceType = digitalSourceType;
   }
 
   @override
-  void setNoEmbed() {
+  Future<void> setNoEmbed() async {
     _checkDisposed();
     noEmbed = true;
   }
 
   @override
-  void setRemoteUrl(String url) {
+  Future<void> setRemoteUrl(String url) async {
     _checkDisposed();
     remoteUrl = url;
+  }
+
+  @override
+  Future<void> setBasePath(String path) async {
+    _checkDisposed();
+    await _platform.builderSetBasePath(_handle, path);
   }
 
   @override
   Future<void> addResource(BuilderResource resource) async {
     _checkDisposed();
     await _platform.builderAddResource(_handle, resource.uri, resource.data);
+  }
+
+  @override
+  Future<void> addIngredientFromArchive(Uint8List archive) async {
+    _checkDisposed();
+    await _platform.builderAddIngredientFromArchive(_handle, archive);
+  }
+
+  @override
+  Future<Uint8List> writeIngredientArchive(String ingredientId) async {
+    _checkDisposed();
+    return _platform.builderWriteIngredientArchive(_handle, ingredientId);
   }
 
   @override
@@ -854,7 +1043,7 @@ class MockBuilder implements ManifestBuilder {
   }
 
   @override
-  void addAction(ActionConfig action) {
+  Future<void> addAction(ActionConfig action) async {
     _checkDisposed();
     actions.add(action.toJson());
   }
@@ -870,18 +1059,101 @@ class MockBuilder implements ManifestBuilder {
   Future<BuilderSignResult> sign({
     required Uint8List sourceData,
     required String mimeType,
-    required C2paSigner signer,
+    C2paSigner? signer,
   }) async {
     _checkDisposed();
     return _platform.builderSign(_handle, sourceData, mimeType, signer);
   }
 
   @override
-  void dispose() {
-    if (!_disposed) {
-      _disposed = true;
-      _platform.builderDispose(_handle);
-    }
+  Future<BuilderFileSignResult> signFile({
+    required String sourcePath,
+    required String destPath,
+    C2paSigner? signer,
+    String? mimeType,
+  }) async {
+    _checkDisposed();
+    return _platform.builderSignFile(
+      _handle,
+      sourcePath,
+      destPath,
+      signer,
+      mimeType: mimeType,
+    );
+  }
+
+  @override
+  Future<bool> needsPlaceholder(String mimeType) async {
+    _checkDisposed();
+    return _platform.builderNeedsPlaceholder(_handle, mimeType);
+  }
+
+  @override
+  Future<Uint8List> placeholder(String mimeType) async {
+    _checkDisposed();
+    return _platform.builderPlaceholder(_handle, mimeType);
+  }
+
+  @override
+  Future<void> setDataHashExclusions(List<DataHashExclusion> exclusions) async {
+    _checkDisposed();
+    await _platform.builderSetDataHashExclusions(_handle, exclusions);
+  }
+
+  @override
+  Future<void> updateHashFromBytes(String mimeType, Uint8List data) async {
+    _checkDisposed();
+    await _platform.builderUpdateHashFromBytes(_handle, mimeType, data);
+  }
+
+  @override
+  Future<void> updateHashFromFile(String path, {String? mimeType}) async {
+    _checkDisposed();
+    await _platform.builderUpdateHashFromFile(
+      _handle,
+      path,
+      mimeType: mimeType,
+    );
+  }
+
+  @override
+  Future<Uint8List> signEmbeddable(String mimeType) async {
+    _checkDisposed();
+    return _platform.builderSignEmbeddable(_handle, mimeType);
+  }
+
+  @override
+  Future<C2paHashType> hashType(String mimeType) async {
+    _checkDisposed();
+    return _platform.builderHashType(_handle, mimeType);
+  }
+
+  @override
+  Future<void> setFixedSizeMerkle(int fixedSizeKb) async {
+    _checkDisposed();
+    await _platform.builderSetFixedSizeMerkle(_handle, fixedSizeKb);
+  }
+
+  @override
+  Future<void> hashMdatBytes({
+    required int mdatId,
+    required Uint8List data,
+    bool largeSize = false,
+  }) async {
+    _checkDisposed();
+    await _platform.builderHashMdatBytes(
+      _handle,
+      mdatId: mdatId,
+      data: data,
+      largeSize: largeSize,
+    );
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    await _platform.builderDispose(_handle);
   }
 }
 
@@ -899,7 +1171,7 @@ class MockSettings {
   final int handle;
   String? settingsStr;
   String? format;
-  final Map<String, String> values = {};
+  final Map<String, Object> values = {};
 
   MockSettings(this.handle);
 }
@@ -908,6 +1180,16 @@ class MockSettings {
 class MockContext {
   final int handle;
   final int? settingsHandle;
+  final C2paSigner? signer;
+  final void Function(C2paProgress progress)? onProgress;
+  final C2paHttpResolver? httpResolver;
+  bool cancelled = false;
 
-  MockContext(this.handle, {this.settingsHandle});
+  MockContext(
+    this.handle, {
+    this.settingsHandle,
+    this.signer,
+    this.onProgress,
+    this.httpResolver,
+  });
 }

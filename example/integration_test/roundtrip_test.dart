@@ -48,7 +48,9 @@ void main() {
     testWidgets('sign bytes then read manifest', (tester) async {
       // Create manifest with specific content
       final manifest = jsonEncode({
-        'claim_generator': 'c2pa_flutter_roundtrip_test/1.0',
+        'claim_generator_info': [
+          {'name': 'c2pa_flutter_roundtrip_test', 'version': '1.0'},
+        ],
         'title': 'Roundtrip Test Image',
         'format': 'image/jpeg',
         'assertions': [
@@ -58,6 +60,7 @@ void main() {
               'actions': [
                 {
                   'action': 'c2pa.created',
+                  'digitalSourceType': 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture',
                   'softwareAgent': 'c2pa_flutter_roundtrip_test/1.0',
                 }
               ]
@@ -84,10 +87,9 @@ void main() {
 
       // Read back the manifest
       final readResult = await c2pa.readBytes(signResult.signedData, 'image/jpeg');
-      expect(readResult, isNotNull);
 
       // Verify the manifest contains expected data
-      final manifestData = jsonDecode(readResult!) as Map<String, dynamic>;
+      final manifestData = jsonDecode(readResult) as Map<String, dynamic>;
       expect(manifestData['active_manifest'], isNotNull);
     });
 
@@ -98,7 +100,9 @@ void main() {
       await sourceFile.writeAsBytes(testImageBytes);
 
       final manifest = jsonEncode({
-        'claim_generator': 'c2pa_flutter_file_test/1.0',
+        'claim_generator_info': [
+          {'name': 'c2pa_flutter_file_test', 'version': '1.0'},
+        ],
         'title': 'File Roundtrip Test',
         'format': 'image/jpeg',
         'assertions': [
@@ -106,7 +110,10 @@ void main() {
             'label': 'c2pa.actions',
             'data': {
               'actions': [
-                {'action': 'c2pa.created'}
+                {
+                  'action': 'c2pa.created',
+                  'digitalSourceType': 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture',
+                }
               ]
             }
           }
@@ -131,7 +138,8 @@ void main() {
 
       // Read back the manifest
       final readResult = await c2pa.readFile(signedFile.path);
-      expect(readResult, isNotNull);
+      final store = ManifestStoreInfo.fromJson(readResult);
+      expect(store.activeManifest, isNotNull);
 
       // Cleanup
       await sourceFile.delete();
@@ -142,7 +150,9 @@ void main() {
   group('Manifest Store Info Roundtrip', () {
     testWidgets('sign then read as ManifestStoreInfo', (tester) async {
       final manifest = jsonEncode({
-        'claim_generator': 'c2pa_flutter_store_test/1.0',
+        'claim_generator_info': [
+          {'name': 'c2pa_flutter_store_test', 'version': '1.0'},
+        ],
         'title': 'ManifestStoreInfo Test',
         'format': 'image/jpeg',
         'assertions': [
@@ -180,8 +190,7 @@ void main() {
         'image/jpeg',
       );
 
-      expect(storeInfo, isNotNull);
-      expect(storeInfo!.activeManifest, isNotNull);
+      expect(storeInfo.activeManifest, isNotNull);
       expect(storeInfo.manifests.isNotEmpty, true);
 
       // Check active manifest
@@ -192,7 +201,9 @@ void main() {
 
     testWidgets('verify assertions are preserved', (tester) async {
       final manifest = jsonEncode({
-        'claim_generator': 'c2pa_flutter_assertions_test/1.0',
+        'claim_generator_info': [
+          {'name': 'c2pa_flutter_assertions_test', 'version': '1.0'},
+        ],
         'title': 'Assertions Test',
         'format': 'image/jpeg',
         'assertions': [
@@ -202,6 +213,7 @@ void main() {
               'actions': [
                 {
                   'action': 'c2pa.created',
+                  'digitalSourceType': 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture',
                   'softwareAgent': 'test_agent/1.0',
                 }
               ]
@@ -241,16 +253,16 @@ void main() {
         'image/jpeg',
       );
 
-      expect(storeInfo, isNotNull);
-      final active = storeInfo!.active;
+      final active = storeInfo.active;
       expect(active, isNotNull);
 
       // Check that assertions are present
       expect(active!.assertions.isNotEmpty, true);
 
-      // Find the actions assertion
+      // Find the actions assertion. c2pa-rs writes v2 actions as
+      // c2pa.actions.v2.
       final actionsAssertion = active.assertions.firstWhere(
-        (a) => a.label == 'c2pa.actions',
+        (a) => a.label == 'c2pa.actions' || a.label == 'c2pa.actions.v2',
         orElse: () => throw StateError('Actions assertion not found'),
       );
       expect(actionsAssertion.data['actions'], isNotNull);
@@ -260,15 +272,17 @@ void main() {
   group('Builder Roundtrip', () {
     testWidgets('builder sign then read manifest', (tester) async {
       final manifest = jsonEncode({
-        'claim_generator': 'c2pa_flutter_builder_test/1.0',
+        'claim_generator_info': [
+          {'name': 'c2pa_flutter_builder_test', 'version': '1.0'},
+        ],
         'title': 'Builder Roundtrip Test',
         'format': 'image/jpeg',
       });
 
       final builder = await c2pa.createBuilder(manifest);
-      builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
+      await builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
 
-      builder.addAction(ActionConfig(
+      await builder.addAction(ActionConfig(
         action: 'c2pa.created',
         softwareAgent: 'c2pa_flutter_builder_test/1.0',
         digitalSourceType: DigitalSourceType.digitalCapture,
@@ -286,7 +300,7 @@ void main() {
         signer: signer,
       );
 
-      builder.dispose();
+      await builder.dispose();
 
       // Verify we can read the manifest back
       final storeInfo = await c2pa.readManifestFromBytes(
@@ -294,24 +308,25 @@ void main() {
         'image/jpeg',
       );
 
-      expect(storeInfo, isNotNull);
-      expect(storeInfo!.active, isNotNull);
+      expect(storeInfo.active, isNotNull);
     });
 
     testWidgets('builder archive roundtrip', (tester) async {
       final manifest = jsonEncode({
-        'claim_generator': 'c2pa_flutter_archive_test/1.0',
+        'claim_generator_info': [
+          {'name': 'c2pa_flutter_archive_test', 'version': '1.0'},
+        ],
         'title': 'Archive Test Image',
         'format': 'image/jpeg',
       });
 
       // Create initial builder and configure it
       final builder1 = await c2pa.createBuilder(manifest);
-      builder1.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
+      await builder1.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
 
       // Export to archive
       final archive = await builder1.toArchive();
-      builder1.dispose();
+      await builder1.dispose();
 
       expect(archive.data.isNotEmpty, true);
 
@@ -330,7 +345,7 @@ void main() {
         signer: signer,
       );
 
-      builder2.dispose();
+      await builder2.dispose();
 
       expect(result.signedData.isNotEmpty, true);
       expect(result.signedData.length, greaterThan(testImageBytes.length));
@@ -338,73 +353,57 @@ void main() {
   });
 
   group('Multiple Signing', () {
-    testWidgets('sign same image multiple times', (tester) async {
+    testWidgets('re-signing with the edit intent chains to the parent', (
+      tester,
+    ) async {
       final signer = PemSigner(
         algorithm: SigningAlgorithm.es256,
         certificatePem: testCert,
         privateKeyPem: testKey,
       );
-
-      // First sign
-      final manifest1 = jsonEncode({
-        'claim_generator': 'c2pa_flutter_multi_test/1.0',
-        'title': 'First Sign',
-        'format': 'image/jpeg',
-        'assertions': [
-          {
-            'label': 'c2pa.actions',
-            'data': {
-              'actions': [
-                {'action': 'c2pa.created'}
-              ]
-            }
-          }
-        ]
+      final manifest = jsonEncode({
+        'title': 'Edit chain',
+        'claim_generator_info': [
+          {'name': 'c2pa_flutter_multi_test', 'version': '1.0'},
+        ],
       });
 
-      final result1 = await c2pa.signBytes(
+      final creator = await c2pa.createBuilder(manifest);
+      await creator.setIntent(
+        ManifestIntent.create,
+        DigitalSourceType.digitalCapture,
+      );
+      final first = await creator.sign(
         sourceData: testImageBytes,
         mimeType: 'image/jpeg',
-        manifestJson: manifest1,
         signer: signer,
       );
+      await creator.dispose();
 
-      // Second sign (editing the first)
-      final manifest2 = jsonEncode({
-        'claim_generator': 'c2pa_flutter_multi_test/1.0',
-        'title': 'Second Sign - Edited',
-        'format': 'image/jpeg',
-        'assertions': [
-          {
-            'label': 'c2pa.actions',
-            'data': {
-              'actions': [
-                {
-                  'action': 'c2pa.edited',
-                  'softwareAgent': 'c2pa_flutter_multi_test/1.0',
-                }
-              ]
-            }
-          }
-        ]
-      });
-
-      final result2 = await c2pa.signBytes(
-        sourceData: result1.signedData,
+      // The edit intent derives the parent ingredient from the source asset.
+      final editor = await c2pa.createBuilder(manifest);
+      await editor.setIntent(ManifestIntent.edit);
+      await editor.addAction(const ActionConfig(action: 'c2pa.edited'));
+      final second = await editor.sign(
+        sourceData: first.signedData,
         mimeType: 'image/jpeg',
-        manifestJson: manifest2,
         signer: signer,
       );
+      await editor.dispose();
 
-      // Read the final manifest
-      final storeInfo = await c2pa.readManifestFromBytes(
-        result2.signedData,
+      final store = await c2pa.readManifestFromBytes(
+        second.signedData,
         'image/jpeg',
       );
-
-      expect(storeInfo, isNotNull);
-      // Should have multiple manifests (original + edited)
-      expect(storeInfo!.manifests.length, greaterThanOrEqualTo(1));
+      expect(store.manifests.length, 2);
+      final parents = store.active!.ingredients.where(
+        (i) => i.relationship == Relationship.parentOf,
+      );
+      expect(parents, hasLength(1));
+      final parentManifest = parents.single.activeManifest;
+      expect(parentManifest, isNotNull);
+      expect(parentManifest, isNot(store.activeManifest));
+      expect(store.manifests.keys, contains(parentManifest));
     });
   });
 }

@@ -1,4 +1,4 @@
-/* 
+/*
 This file is licensed to you under the Apache License, Version 2.0
 (http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
 (http://opensource.org/licenses/MIT), at your option.
@@ -12,2135 +12,753 @@ each license.
 
 package org.guardianproject.c2pa
 
-import android.util.Log
+import android.os.Handler
+import android.os.Looper
 import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.MethodChannel.Result
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.OkHttpClient
+import org.contentauth.c2pa.Action
+import org.contentauth.c2pa.Builder
+import org.contentauth.c2pa.ByteArrayStream
 import org.contentauth.c2pa.C2PA
 import org.contentauth.c2pa.C2PAContext
-import org.contentauth.c2pa.C2PASettings
-import org.contentauth.c2pa.Reader
-import org.contentauth.c2pa.Builder
-import org.contentauth.c2pa.Signer
-import org.contentauth.c2pa.SignerInfo
-import org.contentauth.c2pa.SigningAlgorithm
-import org.contentauth.c2pa.ByteArrayStream
-import org.contentauth.c2pa.FileStream
+import org.contentauth.c2pa.C2PAContextBuilder
 import org.contentauth.c2pa.C2PAError
-import org.contentauth.c2pa.BuilderIntent
-import org.contentauth.c2pa.DigitalSourceType
-import org.contentauth.c2pa.Action
-import org.contentauth.c2pa.KeyStoreSigner
-import org.contentauth.c2pa.StrongBoxSigner
-import org.contentauth.c2pa.WebServiceSigner
-import org.contentauth.c2pa.CertificateManager
-import org.json.JSONObject
-import java.io.File
-import java.io.FileInputStream
-import java.io.StringReader
-import java.security.KeyFactory
-import java.security.KeyStore
-import java.security.PrivateKey
-import java.security.cert.CertificateFactory
-import java.security.cert.X509Certificate
-import java.security.spec.PKCS8EncodedKeySpec
-import java.util.Base64
-import java.util.concurrent.locks.ReentrantLock
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
-
-class C2paPlugin : FlutterPlugin, MethodCallHandler {
-    private lateinit var channel: MethodChannel
-    private var context: android.content.Context? = null
-    private val mainScope = CoroutineScope(Dispatchers.Main)
-
-    // Builder handle management
-    private val builders = HashMap<Int, Builder>()
-    private var nextBuilderHandle = 1
-    private val builderLock = ReentrantLock()
-
-    // Settings handle management
-    private val settings = HashMap<Int, C2PASettings>()
-    private var nextSettingsHandle = 1
-    private val settingsLock = ReentrantLock()
-
-    // Context handle management
-    private val contexts = HashMap<Int, C2PAContext>()
-    private var nextContextHandle = 1
-    private val contextLock = ReentrantLock()
-
-    override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        channel = MethodChannel(flutterPluginBinding.binaryMessenger, "org.guardianproject.c2pa")
-        channel.setMethodCallHandler(this)
-        context = flutterPluginBinding.applicationContext
-    }
-
-    override fun onMethodCall(call: MethodCall, result: Result) {
-        when (call.method) {
-            // Version and Platform Info
-            "getPlatformVersion" -> handleGetPlatformVersion(result)
-            "getVersion" -> handleGetVersion(result)
-
-            // Reader API - Basic
-            "readFile" -> handleReadFile(call, result)
-            "readBytes" -> handleReadBytes(call, result)
-
-            // Reader API - Enhanced
-            "readFileDetailed" -> handleReadFileDetailed(call, result)
-            "readBytesDetailed" -> handleReadBytesDetailed(call, result)
-            "extractResource" -> handleExtractResource(call, result)
-            "readIngredientFile" -> handleReadIngredientFile(call, result)
-            "getRemoteUrl" -> handleGetRemoteUrl(call, result)
-            "isManifestEmbedded" -> handleIsManifestEmbedded(call, result)
-            "getSupportedReadMimeTypes" -> handleGetSupportedReadMimeTypes(result)
-            "getSupportedSignMimeTypes" -> handleGetSupportedSignMimeTypes(result)
-
-            // Signer API - Basic
-            "signBytes" -> handleSignBytes(call, result)
-            "signFile" -> handleSignFile(call, result)
-
-            // Builder API
-            "createBuilder" -> handleCreateBuilder(call, result)
-            "createBuilderFromArchive" -> handleCreateBuilderFromArchive(call, result)
-            "builderSetIntent" -> handleBuilderSetIntent(call, result)
-            "builderSetNoEmbed" -> handleBuilderSetNoEmbed(call, result)
-            "builderSetRemoteUrl" -> handleBuilderSetRemoteUrl(call, result)
-            "builderAddResource" -> handleBuilderAddResource(call, result)
-            "builderAddIngredient" -> handleBuilderAddIngredient(call, result)
-            "builderAddIngredientFromFile" -> handleBuilderAddIngredientFromFile(call, result)
-            "builderAddAction" -> handleBuilderAddAction(call, result)
-            "builderToArchive" -> handleBuilderToArchive(call, result)
-            "builderSign" -> handleBuilderSign(call, result)
-            "builderSignFile" -> handleBuilderSignFile(call, result)
-            "builderDispose" -> handleBuilderDispose(call, result)
-
-            // Advanced Signing API
-            "createHashedPlaceholder" -> handleCreateHashedPlaceholder(call, result)
-            "signHashedEmbeddable" -> handleSignHashedEmbeddable(call, result)
-            "formatEmbeddable" -> handleFormatEmbeddable(call, result)
-            "getSignerReserveSize" -> handleGetSignerReserveSize(call, result)
-
-            // Settings API
-            "loadSettings" -> handleLoadSettings(call, result)
-
-            // Settings Handle API
-            "createSettings" -> handleCreateSettings(result)
-            "settingsUpdateFromString" -> handleSettingsUpdateFromString(call, result)
-            "settingsSetValue" -> handleSettingsSetValue(call, result)
-            "settingsDispose" -> handleSettingsDispose(call, result)
-
-            // Context Handle API
-            "createContext" -> handleCreateContext(result)
-            "createContextFromSettings" -> handleCreateContextFromSettings(call, result)
-            "contextDispose" -> handleContextDispose(call, result)
-
-            // Enhanced Reader with Context
-            "readFileWithContext" -> handleReadFileWithContext(call, result)
-
-            // Enhanced Builder with Context/Settings
-            "createBuilderWithContext" -> handleCreateBuilderWithContext(call, result)
-            "createBuilderWithSettings" -> handleCreateBuilderWithSettings(call, result)
-
-            // Certificate Manager
-            "createSelfSignedCertificateChain" -> handleCreateSelfSignedCertificateChain(call, result)
-
-            // Key Management API
-            "isHardwareSigningAvailable" -> handleIsHardwareSigningAvailable(result)
-            "createKey" -> handleCreateKey(call, result)
-            "deleteKey" -> handleDeleteKey(call, result)
-            "keyExists" -> handleKeyExists(call, result)
-            "exportPublicKey" -> handleExportPublicKey(call, result)
-            "importKey" -> handleImportKey(call, result)
-            "createCSR" -> handleCreateCSR(call, result)
-            "enrollHardwareKey" -> handleEnrollHardwareKey(call, result)
-
-            else -> result.notImplemented()
-        }
-    }
-
-    // =============================================================================
-    // Version and Platform Info
-    // =============================================================================
-
-    private fun handleGetPlatformVersion(result: Result) {
-        result.success("Android ${android.os.Build.VERSION.RELEASE}")
-    }
-
-    private fun handleGetVersion(result: Result) {
-        try {
-            val version = C2PA.version()
-            result.success(version)
-        } catch (e: Exception) {
-            result.error("C2PA_ERROR", "Failed to get version: ${e.message}", null)
-        }
-    }
-
-    // =============================================================================
-    // Reader API - Basic
-    // =============================================================================
-
-    private fun handleReadFile(call: MethodCall, result: Result) {
-        val path = call.argument<String>("path")
-        if (path == null) {
-            result.error("INVALID_ARGUMENT", "Path is required", null)
-            return
-        }
-        try {
-            val json = C2PA.readFile(path, null)
-            result.success(json)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleReadBytes(call: MethodCall, result: Result) {
-        val data = call.argument<ByteArray>("data")
-        val mimeType = call.argument<String>("mimeType")
-        if (data == null || mimeType == null) {
-            result.error("INVALID_ARGUMENT", "Data and mimeType are required", null)
-            return
-        }
-        try {
-            val stream = ByteArrayStream(data)
-            val reader = Reader.fromStream(mimeType, stream)
-            val json = reader.json()
-            reader.close()
-            result.success(json)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    // =============================================================================
-    // Reader API - Enhanced
-    // =============================================================================
-
-    private fun handleReadFileDetailed(call: MethodCall, result: Result) {
-        val path = call.argument<String>("path")
-        val detailed = call.argument<Boolean>("detailed") ?: false
-        val dataDir = call.argument<String>("dataDir")
-
-        if (path == null) {
-            result.error("INVALID_ARGUMENT", "Path is required", null)
-            return
-        }
-
-        try {
-            // Read the file using the static API with dataDir for resource extraction
-            val json = C2PA.readFile(path, dataDir)
-            result.success(json)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleReadBytesDetailed(call: MethodCall, result: Result) {
-        val data = call.argument<ByteArray>("data")
-        val mimeType = call.argument<String>("mimeType")
-        val detailed = call.argument<Boolean>("detailed") ?: false
-
-        if (data == null || mimeType == null) {
-            result.error("INVALID_ARGUMENT", "Data and mimeType are required", null)
-            return
-        }
-
-        try {
-            val stream = ByteArrayStream(data)
-            val reader = Reader.fromStream(mimeType, stream)
-            val json = reader.json()
-            reader.close()
-            result.success(json)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleExtractResource(call: MethodCall, result: Result) {
-        val data = call.argument<ByteArray>("data")
-        val mimeType = call.argument<String>("mimeType")
-        val uri = call.argument<String>("uri")
-
-        if (data == null || mimeType == null || uri == null) {
-            result.error("INVALID_ARGUMENT", "Data, mimeType, and uri are required", null)
-            return
-        }
-
-        try {
-            val stream = ByteArrayStream(data)
-            val reader = Reader.fromStream(mimeType, stream)
-            val resourceStream = ByteArrayStream()
-            reader.resource(uri, resourceStream)
-            val resourceData = resourceStream.getData()
-            reader.close()
-            result.success(resourceData)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleReadIngredientFile(call: MethodCall, result: Result) {
-        val path = call.argument<String>("path")
-        val dataDir = call.argument<String>("dataDir")
-
-        if (path == null) {
-            result.error("INVALID_ARGUMENT", "Path is required", null)
-            return
-        }
-
-        try {
-            val json = C2PA.readIngredientFile(path, dataDir)
-            result.success(json)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleGetRemoteUrl(call: MethodCall, result: Result) {
-        val path = call.argument<String>("path")
-        if (path == null) {
-            result.error("INVALID_ARGUMENT", "Path is required", null)
-            return
-        }
-        val mimeType = call.argument<String>("mimeType") ?: getMimeTypeFromPath(path)
-        try {
-            val stream = FileStream(File(path), FileStream.Mode.READ, createIfNeeded = false)
-            val reader = Reader.fromStream(mimeType, stream)
-            try {
-                result.success(reader.remoteUrl())
-            } finally {
-                reader.close()
-                stream.close()
-            }
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleIsManifestEmbedded(call: MethodCall, result: Result) {
-        val path = call.argument<String>("path")
-        if (path == null) {
-            result.error("INVALID_ARGUMENT", "Path is required", null)
-            return
-        }
-        val mimeType = call.argument<String>("mimeType") ?: getMimeTypeFromPath(path)
-        try {
-            val stream = FileStream(File(path), FileStream.Mode.READ, createIfNeeded = false)
-            val reader = Reader.fromStream(mimeType, stream)
-            try {
-                result.success(reader.isEmbedded())
-            } finally {
-                reader.close()
-                stream.close()
-            }
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleGetSupportedReadMimeTypes(result: Result) {
-        // Return common supported MIME types - the C2PA library supports these formats
-        val mimeTypes = listOf(
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/gif",
-            "image/tiff",
-            "image/heic",
-            "image/heif",
-            "image/avif",
-            "video/mp4",
-            "video/quicktime",
-            "audio/mp4",
-            "application/mp4",
-            "audio/mpeg",
-            "application/pdf",
-            "image/svg+xml"
-        )
-        result.success(mimeTypes)
-    }
-
-    private fun handleGetSupportedSignMimeTypes(result: Result) {
-        // Return common supported MIME types for signing
-        val mimeTypes = listOf(
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/gif",
-            "image/tiff",
-            "image/heic",
-            "image/heif",
-            "image/avif",
-            "video/mp4",
-            "video/quicktime",
-            "audio/mp4",
-            "application/mp4",
-            "audio/mpeg",
-            "application/pdf",
-            "image/svg+xml"
-        )
-        result.success(mimeTypes)
-    }
-
-    // =============================================================================
-    // Signer API - Basic
-    // =============================================================================
-
-    private fun handleSignBytes(call: MethodCall, result: Result) {
-        val sourceData = call.argument<ByteArray>("sourceData")
-        val mimeType = call.argument<String>("mimeType")
-        val manifestJson = call.argument<String>("manifestJson")
-        val signerMap = call.argument<Map<String, Any?>>("signer")
-
-        if (sourceData == null || mimeType == null || manifestJson == null || signerMap == null) {
-            result.error("INVALID_ARGUMENT", "sourceData, mimeType, manifestJson, and signer are required", null)
-            return
-        }
-
-        val signerType = signerMap["type"] as? String ?: "pem"
-
-        // Handle async signers (remote, callback) on background thread to avoid deadlock
-        if (signerType == "remote" || signerType == "callback") {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val signer = createSignerAsync(signerMap)
-                    val builder = Builder.fromJson(manifestJson)
-                    val sourceStream = ByteArrayStream(sourceData)
-                    val destStream = ByteArrayStream()
-
-                    val signResult = builder.sign(mimeType, sourceStream, destStream, signer)
-                    val signedData = destStream.getData()
-
-                    builder.close()
-                    signer.close()
-
-                    val resultMap = HashMap<String, Any?>()
-                    resultMap["signedData"] = signedData
-                    resultMap["manifestBytes"] = signResult.manifestBytes
-
-                    mainScope.launch {
-                        result.success(resultMap)
-                    }
-                } catch (e: C2PAError) {
-                    mainScope.launch {
-                        result.error("C2PA_ERROR", e.message, null)
-                    }
-                } catch (e: Exception) {
-                    mainScope.launch {
-                        result.error("ERROR", e.message, null)
-                    }
-                }
-            }
-        } else {
-            try {
-                val signer = createSigner(signerMap, result) ?: return
-                performSignBytes(sourceData, mimeType, manifestJson, signer, result)
-                signer.close()
-            } catch (e: C2PAError) {
-                result.error("C2PA_ERROR", e.message, null)
-            } catch (e: Exception) {
-                result.error("ERROR", e.message, null)
-            }
-        }
-    }
-
-    private fun performSignBytes(
-        sourceData: ByteArray,
-        mimeType: String,
-        manifestJson: String,
-        signer: Signer,
-        result: Result
-    ) {
-        val builder = Builder.fromJson(manifestJson)
-        val sourceStream = ByteArrayStream(sourceData)
-        val destStream = ByteArrayStream()
-
-        val signResult = builder.sign(mimeType, sourceStream, destStream, signer)
-
-        val signedData = destStream.getData()
-
-        builder.close()
-
-        val resultMap = HashMap<String, Any?>()
-        resultMap["signedData"] = signedData
-        resultMap["manifestBytes"] = signResult.manifestBytes
-
-        result.success(resultMap)
-    }
-
-    private fun handleSignFile(call: MethodCall, result: Result) {
-        val sourcePath = call.argument<String>("sourcePath")
-        val destPath = call.argument<String>("destPath")
-        val manifestJson = call.argument<String>("manifestJson")
-        val signerMap = call.argument<Map<String, Any?>>("signer")
-
-        if (sourcePath == null || destPath == null || manifestJson == null || signerMap == null) {
-            result.error("INVALID_ARGUMENT", "sourcePath, destPath, manifestJson, and signer are required", null)
-            return
-        }
-
-        val signerType = signerMap["type"] as? String ?: "pem"
-
-        // For PEM signers, use the static API
-        if (signerType == "pem") {
-            try {
-                val algorithmStr = signerMap["algorithm"] as String
-                val certificatePem = signerMap["certificatePem"] as String
-                val privateKeyPem = signerMap["privateKeyPem"] as String
-                val tsaUrl = signerMap["tsaUrl"] as String?
-                val algorithm = parseAlgorithm(algorithmStr)
-                val signerInfo = SignerInfo(algorithm, certificatePem, privateKeyPem, tsaUrl)
-                C2PA.signFile(sourcePath, destPath, manifestJson, signerInfo, null)
-                result.success(null)
-            } catch (e: C2PAError) {
-                result.error("C2PA_ERROR", e.message, null)
-            } catch (e: Exception) {
-                result.error("ERROR", e.message, null)
-            }
-        } else {
-            // For other signer types (callback, remote, keystore, hardware),
-            // run on IO thread to avoid deadlock with callback signers
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val signer = createSignerAsync(signerMap)
-                    val sourceFile = File(sourcePath)
-                    val mimeType = getMimeTypeFromPath(sourcePath)
-                    val destFile = File(destPath)
-
-                    val builder = Builder.fromJson(manifestJson)
-                    val sourceStream = FileStream(sourceFile, FileStream.Mode.READ)
-                    val destStream = FileStream(destFile, FileStream.Mode.READ_WRITE)
-                    try {
-                        builder.sign(mimeType, sourceStream, destStream, signer)
-                    } finally {
-                        sourceStream.close()
-                        destStream.close()
-                    }
-
-                    builder.close()
-                    signer.close()
-
-                    mainScope.launch {
-                        result.success(null)
-                    }
-                } catch (e: C2PAError) {
-                    mainScope.launch {
-                        result.error("C2PA_ERROR", e.message, null)
-                    }
-                } catch (e: Exception) {
-                    mainScope.launch {
-                        result.error("ERROR", e.message, null)
-                    }
-                }
-            }
-        }
-    }
-
-    // =============================================================================
-    // Builder API
-    // =============================================================================
-
-    private fun handleCreateBuilder(call: MethodCall, result: Result) {
-        val manifestJson = call.argument<String>("manifestJson")
-
-        if (manifestJson == null) {
-            result.error("INVALID_ARGUMENT", "manifestJson is required", null)
-            return
-        }
-
-        try {
-            val builder = Builder.fromJson(manifestJson)
-            val handle = storeBuilder(builder)
-            result.success(handle)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleCreateBuilderFromArchive(call: MethodCall, result: Result) {
-        val archiveData = call.argument<ByteArray>("archiveData")
-
-        if (archiveData == null) {
-            result.error("INVALID_ARGUMENT", "archiveData is required", null)
-            return
-        }
-
-        try {
-            val stream = ByteArrayStream(archiveData)
-            val builder = Builder.fromArchive(stream)
-            val handle = storeBuilder(builder)
-            result.success(handle)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderSetIntent(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val intentStr = call.argument<String>("intent")
-        val digitalSourceTypeStr = call.argument<String>("digitalSourceType")
-
-        if (handle == null || intentStr == null) {
-            result.error("INVALID_ARGUMENT", "handle and intent are required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            // Map the digital source type if provided, otherwise use default
-            val digitalSourceType = if (digitalSourceTypeStr != null) {
-                mapDigitalSourceType(digitalSourceTypeStr)
-            } else {
-                DigitalSourceType.DIGITAL_CAPTURE
-            }
-
-            val intent = mapIntent(intentStr, digitalSourceType)
-            builder.setIntent(intent)
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderSetNoEmbed(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-
-        if (handle == null) {
-            result.error("INVALID_ARGUMENT", "handle is required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            builder.setNoEmbed()
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderSetRemoteUrl(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val url = call.argument<String>("url")
-
-        if (handle == null || url == null) {
-            result.error("INVALID_ARGUMENT", "handle and url are required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            builder.setRemoteURL(url)
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderAddResource(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val uri = call.argument<String>("uri")
-        val data = call.argument<ByteArray>("data")
-
-        if (handle == null || uri == null || data == null) {
-            result.error("INVALID_ARGUMENT", "handle, uri, and data are required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            val stream = ByteArrayStream(data)
-            builder.addResource(uri, stream)
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderAddIngredient(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val data = call.argument<ByteArray>("data")
-        val mimeType = call.argument<String>("mimeType")
-        val ingredientJson = call.argument<String>("ingredientJson")
-
-        if (handle == null || data == null || mimeType == null) {
-            result.error("INVALID_ARGUMENT", "handle, data, and mimeType are required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            val stream = ByteArrayStream(data)
-            // API signature: addIngredient(ingredientJson, mimeType, stream)
-            // Use empty JSON object if ingredientJson is null
-            builder.addIngredient(ingredientJson ?: "{}", mimeType, stream)
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderAddIngredientFromFile(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val path = call.argument<String>("path")
-        val ingredientJson = call.argument<String>("ingredientJson")
-
-        if (handle == null || path == null) {
-            result.error("INVALID_ARGUMENT", "handle and path are required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            // Builder doesn't have addIngredientFile - read file and use addIngredient
-            val file = File(path)
-            val mimeType = getMimeTypeFromPath(path)
-            val stream = FileStream(file, FileStream.Mode.READ)
-            try {
-                builder.addIngredient(ingredientJson ?: "{}", mimeType, stream)
-            } finally {
-                stream.close()
-            }
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderAddAction(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val actionJson = call.argument<String>("actionJson")
-
-        if (handle == null || actionJson == null) {
-            result.error("INVALID_ARGUMENT", "handle and actionJson are required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            // Parse JSON and create Action object
-            val json = JSONObject(actionJson)
-            val actionName = json.optString("action", "c2pa.unknown")
-            val softwareAgent = json.optString("softwareAgent", null)
-            val digitalSourceType = json.optString("digitalSourceType", null)
-
-            // Parse parameters if present
-            val parameters = mutableMapOf<String, JsonElement>()
-            if (json.has("parameters")) {
-                val paramsJson = json.getJSONObject("parameters")
-                val keys = paramsJson.keys()
-                while (keys.hasNext()) {
-                    val key = keys.next()
-                    parameters[key] = JsonPrimitive(paramsJson.optString(key, ""))
-                }
-            }
-
-            val action = Action(
-                actionName,
-                digitalSourceType,
-                softwareAgent?.let { JsonPrimitive(it) },
-                if (parameters.isEmpty()) null else parameters
-            )
-
-            builder.addAction(action)
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderToArchive(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-
-        if (handle == null) {
-            result.error("INVALID_ARGUMENT", "handle is required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            val stream = ByteArrayStream()
-            builder.toArchive(stream)
-            val archiveData = stream.getData()
-            result.success(archiveData)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleBuilderSign(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val sourceData = call.argument<ByteArray>("sourceData")
-        val mimeType = call.argument<String>("mimeType")
-        val signerMap = call.argument<Map<String, Any?>>("signer")
-
-        if (handle == null || sourceData == null || mimeType == null || signerMap == null) {
-            result.error("INVALID_ARGUMENT", "handle, sourceData, mimeType, and signer are required", null)
-            return
-        }
-
-        val builder = getBuilder(handle)
-        if (builder == null) {
-            result.error("INVALID_HANDLE", "Invalid builder handle", null)
-            return
-        }
-
-        val signerType = signerMap["type"] as? String ?: "pem"
-
-        // Callback signers need async execution to avoid deadlock:
-        // The callback uses runBlocking + mainScope.launch to call Flutter,
-        // so we must run the signing on a background thread to keep main thread free.
-        if (signerType == "remote" || signerType == "callback") {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val signer = createSignerAsync(signerMap)
-                    val sourceStream = ByteArrayStream(sourceData)
-                    val destStream = ByteArrayStream()
-
-                    val signResult = builder.sign(mimeType, sourceStream, destStream, signer)
-                    val signedData = destStream.getData()
-
-                    val resultMap = HashMap<String, Any?>()
-                    resultMap["signedData"] = signedData
-                    resultMap["manifestBytes"] = signResult.manifestBytes
-                    resultMap["manifestSize"] = signResult.manifestBytes?.size ?: 0
-
-                    signer.close()
-
-                    // Return result on main thread
-                    mainScope.launch {
-                        result.success(resultMap)
-                    }
-                } catch (e: C2PAError) {
-                    mainScope.launch {
-                        result.error("C2PA_ERROR", e.message, null)
-                    }
-                } catch (e: Exception) {
-                    mainScope.launch {
-                        result.error("ERROR", e.message, null)
-                    }
-                }
-            }
-        } else {
-            try {
-                val signer = createSigner(signerMap, result) ?: return
-                performBuilderSign(builder, sourceData, mimeType, signer, result)
-                signer.close()
-            } catch (e: C2PAError) {
-                result.error("C2PA_ERROR", e.message, null)
-            } catch (e: Exception) {
-                result.error("ERROR", e.message, null)
-            }
-        }
-    }
-
-    private fun performBuilderSign(
-        builder: Builder,
-        sourceData: ByteArray,
-        mimeType: String,
-        signer: Signer,
-        result: Result
-    ) {
-        val sourceStream = ByteArrayStream(sourceData)
-        val destStream = ByteArrayStream()
-
-        val signResult = builder.sign(mimeType, sourceStream, destStream, signer)
-        val signedData = destStream.getData()
-
-        val resultMap = HashMap<String, Any?>()
-        resultMap["signedData"] = signedData
-        resultMap["manifestBytes"] = signResult.manifestBytes
-        resultMap["manifestSize"] = signResult.manifestBytes?.size ?: 0
-
-        result.success(resultMap)
-    }
-
-    private fun handleBuilderSignFile(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val sourcePath = call.argument<String>("sourcePath")
-        val destPath = call.argument<String>("destPath")
-        val signerMap = call.argument<Map<String, Any?>>("signer")
-
-        if (handle == null || sourcePath == null || destPath == null || signerMap == null) {
-            result.error("INVALID_ARGUMENT", "handle, sourcePath, destPath, and signer are required", null)
-            return
-        }
-
-        val builder = getBuilder(handle)
-        if (builder == null) {
-            result.error("INVALID_HANDLE", "Invalid builder handle", null)
-            return
-        }
-
-        val signerType = signerMap["type"] as? String ?: "pem"
-
-        // Callback signers need async execution to avoid deadlock
-        if (signerType == "remote" || signerType == "callback") {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val signer = createSignerAsync(signerMap)
-                    val sourceFile = File(sourcePath)
-                    val mimeType = getMimeTypeFromPath(sourcePath)
-                    val destFile = File(destPath)
-
-                    val sourceStream = FileStream(sourceFile, FileStream.Mode.READ)
-                    val destStream = FileStream(destFile, FileStream.Mode.READ_WRITE)
-                    try {
-                        builder.sign(mimeType, sourceStream, destStream, signer)
-                    } finally {
-                        sourceStream.close()
-                        destStream.close()
-                    }
-
-                    signer.close()
-
-                    mainScope.launch {
-                        result.success(null)
-                    }
-                } catch (e: C2PAError) {
-                    mainScope.launch {
-                        result.error("C2PA_ERROR", e.message, null)
-                    }
-                } catch (e: Exception) {
-                    mainScope.launch {
-                        result.error("ERROR", e.message, null)
-                    }
-                }
-            }
-        } else {
-            try {
-                val signer = createSigner(signerMap, result) ?: return
-                performBuilderSignFile(builder, sourcePath, destPath, signer, result)
-                signer.close()
-            } catch (e: C2PAError) {
-                result.error("C2PA_ERROR", e.message, null)
-            } catch (e: Exception) {
-                result.error("ERROR", e.message, null)
-            }
-        }
-    }
-
-    private fun performBuilderSignFile(
-        builder: Builder,
-        sourcePath: String,
-        destPath: String,
-        signer: Signer,
-        result: Result
-    ) {
-        val sourceFile = File(sourcePath)
-        val mimeType = getMimeTypeFromPath(sourcePath)
-        val destFile = File(destPath)
-
-        val sourceStream = FileStream(sourceFile, FileStream.Mode.READ)
-        val destStream = FileStream(destFile, FileStream.Mode.READ_WRITE)
-        try {
-            builder.sign(mimeType, sourceStream, destStream, signer)
-        } finally {
-            sourceStream.close()
-            destStream.close()
-        }
-
-        result.success(null)
-    }
-
-    private fun getMimeTypeFromPath(path: String): String {
-        val extension = path.substringAfterLast('.', "").lowercase()
-        return when (extension) {
-            "jpg", "jpeg" -> "image/jpeg"
-            "png" -> "image/png"
-            "gif" -> "image/gif"
-            "webp" -> "image/webp"
-            "tiff", "tif" -> "image/tiff"
-            "heic" -> "image/heic"
-            "heif" -> "image/heif"
-            "avif" -> "image/avif"
-            "mp4", "m4v" -> "video/mp4"
-            "mov" -> "video/quicktime"
-            "m4a" -> "audio/mp4"
-            "mp3" -> "audio/mpeg"
-            "pdf" -> "application/pdf"
-            "svg" -> "image/svg+xml"
-            else -> "application/octet-stream"
-        }
-    }
-
-    private fun handleBuilderDispose(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-
-        if (handle == null) {
-            result.error("INVALID_ARGUMENT", "handle is required", null)
-            return
-        }
-
-        try {
-            val builder = removeBuilder(handle)
-            builder?.close()
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    // =============================================================================
-    // Advanced Signing API
-    // =============================================================================
-
-    private fun handleCreateHashedPlaceholder(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val reservedSize = call.argument<Int>("reservedSize")
-        val mimeType = call.argument<String>("mimeType")
-
-        if (handle == null || reservedSize == null || mimeType == null) {
-            result.error("INVALID_ARGUMENT", "handle, reservedSize, and mimeType are required", null)
-            return
-        }
-
-        try {
-            val builder = getBuilder(handle)
-            if (builder == null) {
-                result.error("INVALID_HANDLE", "Invalid builder handle", null)
-                return
-            }
-
-            val placeholderData = builder.dataHashedPlaceholder(reservedSize.toLong(), mimeType)
-            result.success(placeholderData)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleSignHashedEmbeddable(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val signerMap = call.argument<Map<String, Any?>>("signer")
-        val dataHash = call.argument<String>("dataHash")
-        val mimeType = call.argument<String>("mimeType")
-        val assetData = call.argument<ByteArray>("assetData")
-
-        if (handle == null || signerMap == null || dataHash == null || mimeType == null) {
-            result.error("INVALID_ARGUMENT", "handle, signer, dataHash, and mimeType are required", null)
-            return
-        }
-
-        val builder = getBuilder(handle)
-        if (builder == null) {
-            result.error("INVALID_HANDLE", "Invalid builder handle", null)
-            return
-        }
-
-        val signerType = signerMap["type"] as? String ?: "pem"
-
-        // Callback signers need async execution to avoid deadlock
-        if (signerType == "remote" || signerType == "callback") {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val signer = createSignerAsync(signerMap)
-                    val assetStream = if (assetData != null) ByteArrayStream(assetData) else null
-                    val embeddableData = builder.signDataHashedEmbeddable(signer, dataHash, mimeType, assetStream)
-                    signer.close()
-
-                    mainScope.launch {
-                        result.success(embeddableData)
-                    }
-                } catch (e: C2PAError) {
-                    mainScope.launch {
-                        result.error("C2PA_ERROR", e.message, null)
-                    }
-                } catch (e: Exception) {
-                    mainScope.launch {
-                        result.error("ERROR", e.message, null)
-                    }
-                }
-            }
-        } else {
-            try {
-                val signer = createSigner(signerMap, result) ?: return
-                val assetStream = if (assetData != null) ByteArrayStream(assetData) else null
-                val embeddableData = builder.signDataHashedEmbeddable(signer, dataHash, mimeType, assetStream)
-                signer.close()
-                result.success(embeddableData)
-            } catch (e: C2PAError) {
-                result.error("C2PA_ERROR", e.message, null)
-            } catch (e: Exception) {
-                result.error("ERROR", e.message, null)
-            }
-        }
-    }
-
-    private fun handleFormatEmbeddable(call: MethodCall, result: Result) {
-        val mimeType = call.argument<String>("mimeType")
-        val manifestBytes = call.argument<ByteArray>("manifestBytes")
-
-        if (mimeType == null || manifestBytes == null) {
-            result.error("INVALID_ARGUMENT", "mimeType and manifestBytes are required", null)
-            return
-        }
-
-        // formatEmbeddable is not available in the Android C2PA library.
-        // The manifest bytes from signDataHashedEmbeddable are already in the correct format.
-        // Return the manifest bytes unchanged.
-        Log.w("C2paPlugin", "formatEmbeddable: Not supported on Android, returning input unchanged")
-        result.success(manifestBytes)
-    }
-
-    private fun handleGetSignerReserveSize(call: MethodCall, result: Result) {
-        val signerMap = call.argument<Map<String, Any?>>("signer")
-
-        if (signerMap == null) {
-            result.error("INVALID_ARGUMENT", "signer is required", null)
-            return
-        }
-
-        val signerType = signerMap["type"] as? String ?: "pem"
-
-        // Callback signers need async execution to avoid deadlock
-        if (signerType == "remote" || signerType == "callback") {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val signer = createSignerAsync(signerMap)
-                    val reserveSize = signer.reserveSize()
-                    signer.close()
-
-                    mainScope.launch {
-                        result.success(reserveSize)
-                    }
-                } catch (e: C2PAError) {
-                    mainScope.launch {
-                        result.error("C2PA_ERROR", e.message, null)
-                    }
-                } catch (e: Exception) {
-                    mainScope.launch {
-                        result.error("ERROR", e.message, null)
-                    }
-                }
-            }
-        } else {
-            try {
-                val signer = createSigner(signerMap, result) ?: return
-                val reserveSize = signer.reserveSize()
-                signer.close()
-                result.success(reserveSize)
-            } catch (e: C2PAError) {
-                result.error("C2PA_ERROR", e.message, null)
-            } catch (e: Exception) {
-                result.error("ERROR", e.message, null)
-            }
-        }
-    }
-
-    // =============================================================================
-    // Settings API
-    // =============================================================================
-
-    private fun handleLoadSettings(call: MethodCall, result: Result) {
-        val settings = call.argument<String>("settings")
-        val format = call.argument<String>("format")
-
-        if (settings == null || format == null) {
-            result.error("INVALID_ARGUMENT", "settings and format are required", null)
-            return
-        }
-
-        try {
-            C2PA.loadSettings(settings, format)
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    // =============================================================================
-    // Settings Handle API
-    // =============================================================================
-
-    private fun handleCreateSettings(result: Result) {
-        try {
-            val settingsObj = C2PASettings.create()
-            val handle = storeSettings(settingsObj)
-            result.success(handle)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleSettingsUpdateFromString(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val settingsStr = call.argument<String>("settings")
-        val format = call.argument<String>("format")
-
-        if (handle == null || settingsStr == null || format == null) {
-            result.error("INVALID_ARGUMENT", "handle, settings, and format are required", null)
-            return
-        }
-
-        try {
-            val settingsObj = getSettings(handle)
-            if (settingsObj == null) {
-                result.error("INVALID_HANDLE", "Invalid settings handle", null)
-                return
-            }
-
-            settingsObj.updateFromString(settingsStr, format)
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleSettingsSetValue(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-        val path = call.argument<String>("path")
-        val value = call.argument<String>("value")
-
-        if (handle == null || path == null || value == null) {
-            result.error("INVALID_ARGUMENT", "handle, path, and value are required", null)
-            return
-        }
-
-        try {
-            val settingsObj = getSettings(handle)
-            if (settingsObj == null) {
-                result.error("INVALID_HANDLE", "Invalid settings handle", null)
-                return
-            }
-
-            settingsObj.setValue(path, value)
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleSettingsDispose(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-
-        if (handle == null) {
-            result.error("INVALID_ARGUMENT", "handle is required", null)
-            return
-        }
-
-        try {
-            val settingsObj = removeSettings(handle)
-            settingsObj?.close()
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    // =============================================================================
-    // Context Handle API
-    // =============================================================================
-
-    private fun handleCreateContext(result: Result) {
-        try {
-            val contextObj = C2PAContext.create()
-            val handle = storeContext(contextObj)
-            result.success(handle)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleCreateContextFromSettings(call: MethodCall, result: Result) {
-        val settingsHandle = call.argument<Int>("settingsHandle")
-
-        if (settingsHandle == null) {
-            result.error("INVALID_ARGUMENT", "settingsHandle is required", null)
-            return
-        }
-
-        try {
-            val settingsObj = getSettings(settingsHandle)
-            if (settingsObj == null) {
-                result.error("INVALID_HANDLE", "Invalid settings handle", null)
-                return
-            }
-
-            val contextObj = C2PAContext.fromSettings(settingsObj)
-            val handle = storeContext(contextObj)
-            result.success(handle)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleContextDispose(call: MethodCall, result: Result) {
-        val handle = call.argument<Int>("handle")
-
-        if (handle == null) {
-            result.error("INVALID_ARGUMENT", "handle is required", null)
-            return
-        }
-
-        try {
-            val contextObj = removeContext(handle)
-            contextObj?.close()
-            result.success(null)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    // =============================================================================
-    // Enhanced Reader with Context
-    // =============================================================================
-
-    private fun handleReadFileWithContext(call: MethodCall, result: Result) {
-        val path = call.argument<String>("path")
-        val contextHandle = call.argument<Int>("contextHandle")
-        val detailed = call.argument<Boolean>("detailed") ?: false
-        val dataDir = call.argument<String>("dataDir")
-
-        if (path == null || contextHandle == null) {
-            result.error("INVALID_ARGUMENT", "path and contextHandle are required", null)
-            return
-        }
-
-        try {
-            val contextObj = getContext(contextHandle)
-            if (contextObj == null) {
-                result.error("INVALID_HANDLE", "Invalid context handle", null)
-                return
-            }
-
-            val file = File(path)
-            val mimeType = getMimeTypeFromPath(path)
-            val stream = FileStream(file, FileStream.Mode.READ)
-            val reader: Reader
-            try {
-                reader = Reader.fromContext(contextObj).withStream(mimeType, stream)
-            } finally {
-                stream.close()
-            }
-            val json = if (detailed) reader.detailedJson() else reader.json()
-            reader.close()
-            result.success(json)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    // =============================================================================
-    // Enhanced Builder with Context/Settings
-    // =============================================================================
-
-    private fun handleCreateBuilderWithContext(call: MethodCall, result: Result) {
-        val contextHandle = call.argument<Int>("contextHandle")
-        val manifestJson = call.argument<String>("manifestJson")
-
-        if (contextHandle == null || manifestJson == null) {
-            result.error("INVALID_ARGUMENT", "contextHandle and manifestJson are required", null)
-            return
-        }
-
-        try {
-            val contextObj = getContext(contextHandle)
-            if (contextObj == null) {
-                result.error("INVALID_HANDLE", "Invalid context handle", null)
-                return
-            }
-
-            val builder = Builder.fromContext(contextObj).withDefinition(manifestJson)
-            val handle = storeBuilder(builder)
-            result.success(handle)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    private fun handleCreateBuilderWithSettings(call: MethodCall, result: Result) {
-        val manifestJson = call.argument<String>("manifestJson")
-        val settingsHandle = call.argument<Int>("settingsHandle")
-
-        if (manifestJson == null || settingsHandle == null) {
-            result.error("INVALID_ARGUMENT", "manifestJson and settingsHandle are required", null)
-            return
-        }
-
-        try {
-            val settingsObj = getSettings(settingsHandle)
-            if (settingsObj == null) {
-                result.error("INVALID_HANDLE", "Invalid settings handle", null)
-                return
-            }
-
-            val builder = Builder.fromJson(manifestJson, settingsObj)
-            val handle = storeBuilder(builder)
-            result.success(handle)
-        } catch (e: C2PAError) {
-            result.error("C2PA_ERROR", e.message, null)
-        } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
-        }
-    }
-
-    // =============================================================================
-    // Certificate Manager
-    // =============================================================================
-
-    private fun handleCreateSelfSignedCertificateChain(call: MethodCall, result: Result) {
-        // Self-signed certificate chain generation is not directly available
-        // in the c2pa-android library.
-        result.error("UNSUPPORTED", "createSelfSignedCertificateChain is not supported on Android", null)
-    }
-
-    // =============================================================================
-    // Helper Functions
-    // =============================================================================
-
-    private fun parseAlgorithm(algorithmStr: String): SigningAlgorithm {
-        return when (algorithmStr) {
-            "es256" -> SigningAlgorithm.ES256
-            "es384" -> SigningAlgorithm.ES384
-            "es512" -> SigningAlgorithm.ES512
-            "ps256" -> SigningAlgorithm.PS256
-            "ps384" -> SigningAlgorithm.PS384
-            "ps512" -> SigningAlgorithm.PS512
-            "ed25519" -> SigningAlgorithm.ED25519
-            else -> SigningAlgorithm.ES256
-        }
-    }
-
-    private fun createSigner(map: Map<String, Any?>, result: Result): Signer? {
-        val type = map["type"] as? String ?: "pem"
-
-        return try {
-            when (type) {
-                "pem" -> createPemSigner(map)
-                "callback" -> createCallbackSigner(map)
-                "keystore" -> createKeystoreSigner(map)
-                "hardware" -> createHardwareSigner(map)
-                "settings" -> createSettingsSigner(map)
-                "remote" -> {
-                    // Remote signer is async, needs special handling
-                    null // Will be handled separately
-                }
-                else -> {
-                    result.error("INVALID_ARGUMENT", "Unknown signer type: $type", null)
-                    null
-                }
-            }
-        } catch (e: Exception) {
-            result.error("SIGNER_ERROR", "Failed to create signer: ${e.message}", null)
-            null
-        }
-    }
-
-    private suspend fun createSignerAsync(map: Map<String, Any?>): Signer {
-        val type = map["type"] as? String ?: "pem"
-
-        return when (type) {
-            "pem" -> createPemSigner(map)
-            "callback" -> createCallbackSigner(map)
-            "keystore" -> createKeystoreSigner(map)
-            "hardware" -> createHardwareSigner(map)
-            "settings" -> createSettingsSigner(map)
-            "remote" -> createRemoteSigner(map)
-            else -> throw IllegalArgumentException("Unknown signer type: $type")
-        }
-    }
-
-    private fun createPemSigner(map: Map<String, Any?>): Signer {
-        val algorithmStr = map["algorithm"] as String
-        val certificatePem = map["certificatePem"] as String
-        val privateKeyPem = map["privateKeyPem"] as String
-        val tsaUrl = map["tsaUrl"] as String?
-
-        val algorithm = parseAlgorithm(algorithmStr)
-        val signerInfo = SignerInfo(algorithm, certificatePem, privateKeyPem, tsaUrl)
-        return Signer.fromInfo(signerInfo)
-    }
-
-    private fun createCallbackSigner(map: Map<String, Any?>): Signer {
-        val algorithmStr = map["algorithm"] as String
-        val certificateChainPem = map["certificateChainPem"] as String
-        val tsaUrl = map["tsaUrl"] as String?
-        val callbackId = map["callbackId"] as String
-
-        val algorithm = parseAlgorithm(algorithmStr)
-
-        return Signer.withCallback(algorithm, certificateChainPem, tsaUrl) { data ->
-            // Invoke Dart callback via method channel
-            val callResult = runBlocking {
-                kotlinx.coroutines.suspendCancellableCoroutine<ByteArray> { continuation ->
-                    mainScope.launch {
-                        try {
-                            channel.invokeMethod(
-                                "signCallback",
-                                mapOf("callbackId" to callbackId, "data" to data),
-                                object : Result {
-                                    override fun success(result: Any?) {
-                                        continuation.resume(result as ByteArray) {}
-                                    }
-                                    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
-                                        continuation.cancel(Exception("Callback error: $errorMessage"))
-                                    }
-                                    override fun notImplemented() {
-                                        continuation.cancel(Exception("Callback not implemented"))
-                                    }
-                                }
-                            )
-                        } catch (e: Exception) {
-                            continuation.cancel(e)
-                        }
-                    }
-                }
-            }
-            callResult
-        }
-    }
-
-    private fun createKeystoreSigner(map: Map<String, Any?>): Signer {
-        val algorithmStr = map["algorithm"] as String
-        val certificateChainPem = map["certificateChainPem"] as String
-        val keyAlias = map["keyAlias"] as String
-        val tsaUrl = map["tsaUrl"] as String?
-
-        val algorithm = parseAlgorithm(algorithmStr)
-
-        return KeyStoreSigner.createSigner(algorithm, certificateChainPem, keyAlias, tsaUrl)
-    }
-
-    private fun createHardwareSigner(map: Map<String, Any?>): Signer {
-        val certificateChainPem = map["certificateChainPem"] as String
-        val keyAlias = map["keyAlias"] as String
-        val tsaUrl = map["tsaUrl"] as String?
-        val requireUserAuthentication = map["requireUserAuthentication"] as? Boolean ?: false
-
-        val config = StrongBoxSigner.Config(
-            keyTag = keyAlias,
-            requireUserAuthentication = requireUserAuthentication
-        )
-
-        return StrongBoxSigner.createSigner(
-            SigningAlgorithm.ES256, // StrongBox only supports ES256
-            certificateChainPem,
-            config,
-            tsaUrl
-        )
-    }
-
-    private fun createSettingsSigner(map: Map<String, Any?>): Signer {
-        val settingsStr = map["settings"] as String
-        val format = map["format"] as? String ?: "json"
-
-        return when (format.lowercase()) {
-            "toml" -> Signer.fromSettingsToml(settingsStr)
-            else -> Signer.fromSettingsJson(settingsStr)
-        }
-    }
-
-    private suspend fun createRemoteSigner(map: Map<String, Any?>): Signer {
-        val configurationUrl = map["configurationUrl"] as String
-        val bearerToken = map["bearerToken"] as String?
-        val rawHeaders = map["customHeaders"]
-        val customHeaders = if (rawHeaders is Map<*, *>) {
-            rawHeaders.entries.associate { (k, v) -> k.toString() to v.toString() }
-        } else {
-            emptyMap<String, String>()
-        }
-
-        val webServiceSigner = WebServiceSigner(configurationUrl, bearerToken, customHeaders)
-        return webServiceSigner.createSigner()
-    }
-
-    private fun mapIntent(intent: String, digitalSourceType: DigitalSourceType = DigitalSourceType.DIGITAL_CAPTURE): BuilderIntent {
-        return when (intent) {
-            "create" -> BuilderIntent.Create(digitalSourceType)
-            "edit" -> BuilderIntent.Edit
-            "update" -> BuilderIntent.Update
-            else -> BuilderIntent.Create(digitalSourceType)
-        }
-    }
-
-    private fun mapDigitalSourceType(type: String): DigitalSourceType {
-        return when (type) {
-            "empty" -> DigitalSourceType.EMPTY
-            "trainedAlgorithmicMedia" -> DigitalSourceType.TRAINED_ALGORITHMIC_MEDIA
-            "compositeWithTrainedAlgorithmicMedia" -> DigitalSourceType.COMPOSITE_WITH_TRAINED_ALGORITHMIC_MEDIA
-            "algorithmicMedia" -> DigitalSourceType.ALGORITHMIC_MEDIA
-            "compositeCapture" -> DigitalSourceType.COMPOSITE_CAPTURE
-            "compositeSynthetic" -> DigitalSourceType.COMPOSITE_SYNTHETIC
-            "dataDrivenMedia" -> DigitalSourceType.DATA_DRIVEN_MEDIA
-            "digitalCapture" -> DigitalSourceType.DIGITAL_CAPTURE
-            "virtualRecording" -> DigitalSourceType.VIRTUAL_RECORDING
-            "humanEdits" -> DigitalSourceType.HUMAN_EDITS
-            "computationalCapture" -> DigitalSourceType.COMPUTATIONAL_CAPTURE
-            "digitalCreation" -> DigitalSourceType.DIGITAL_CREATION
-            "trainedAlgorithmicData" -> DigitalSourceType.TRAINED_ALGORITHMIC_DATA
-            "screenCapture" -> DigitalSourceType.SCREEN_CAPTURE
-            "composite" -> DigitalSourceType.COMPOSITE
-            "algorithmicallyEnhanced" -> DigitalSourceType.ALGORITHMICALLY_ENHANCED
-            "negativeFilm" -> DigitalSourceType.NEGATIVE_FILM
-            "positiveFilm" -> DigitalSourceType.POSITIVE_FILM
-            "print" -> DigitalSourceType.PRINT
-            else -> DigitalSourceType.DIGITAL_CAPTURE
-        }
-    }
-
-    // =============================================================================
-    // Key Management API
-    // =============================================================================
-
-    private fun handleIsHardwareSigningAvailable(result: Result) {
-        try {
-            val ctx = context
-            if (ctx == null) {
-                result.success(false)
-                return
-            }
-            val available = StrongBoxSigner.isAvailable(ctx)
-            result.success(available)
-        } catch (e: Exception) {
-            result.success(false)
-        }
-    }
-
-    private fun handleCreateKey(call: MethodCall, result: Result) {
-        val keyAlias = call.argument<String>("keyAlias")
-        val algorithmStr = call.argument<String>("algorithm")
-        val useHardware = call.argument<Boolean>("useHardware") ?: false
-
-        if (keyAlias == null || algorithmStr == null) {
-            result.error("INVALID_ARGUMENT", "keyAlias and algorithm are required", null)
-            return
-        }
-
-        try {
-            if (useHardware) {
-                val config = StrongBoxSigner.Config(keyTag = keyAlias)
-                StrongBoxSigner.createKey(config)
-            } else {
-                // For regular keystore, we would need to create a key
-                // The KeyStoreSigner doesn't expose key creation directly
-                // This would need to be done via Android KeyStore API
-                result.error("NOT_IMPLEMENTED", "Non-hardware key creation not yet implemented", null)
-                return
-            }
-            result.success(null)
-        } catch (e: Exception) {
-            result.error("ERROR", "Failed to create key: ${e.message}", null)
-        }
-    }
-
-    private fun handleDeleteKey(call: MethodCall, result: Result) {
-        val keyAlias = call.argument<String>("keyAlias")
-
-        if (keyAlias == null) {
-            result.error("INVALID_ARGUMENT", "keyAlias is required", null)
-            return
-        }
-
-        try {
-            // Try StrongBox first, then KeyStore
-            val strongBoxDeleted = StrongBoxSigner.deleteKey(keyAlias)
-            if (strongBoxDeleted) {
-                result.success(true)
-                return
-            }
-
-            val keyStoreDeleted = KeyStoreSigner.deleteKey(keyAlias)
-            result.success(keyStoreDeleted)
-        } catch (e: Exception) {
-            result.error("ERROR", "Failed to delete key: ${e.message}", null)
-        }
-    }
-
-    private fun handleKeyExists(call: MethodCall, result: Result) {
-        val keyAlias = call.argument<String>("keyAlias")
-
-        if (keyAlias == null) {
-            result.error("INVALID_ARGUMENT", "keyAlias is required", null)
-            return
-        }
-
-        try {
-            val exists = StrongBoxSigner.keyExists(keyAlias) || KeyStoreSigner.keyExists(keyAlias)
-            result.success(exists)
-        } catch (e: Exception) {
-            result.error("ERROR", "Failed to check key: ${e.message}", null)
-        }
-    }
-
-    private fun handleExportPublicKey(call: MethodCall, result: Result) {
-        val keyAlias = call.argument<String>("keyAlias")
-
-        if (keyAlias == null) {
-            result.error("INVALID_ARGUMENT", "keyAlias is required", null)
-            return
-        }
-
-        try {
-            // Export public key from keystore
-            val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")
-            keyStore.load(null)
-            val cert = keyStore.getCertificate(keyAlias)
-            if (cert == null) {
-                result.error("KEY_NOT_FOUND", "Key not found: $keyAlias", null)
-                return
-            }
-            val publicKey = cert.publicKey
-            val encoded = android.util.Base64.encodeToString(publicKey.encoded, android.util.Base64.DEFAULT)
-            val pem = "-----BEGIN PUBLIC KEY-----\n$encoded-----END PUBLIC KEY-----"
-            result.success(pem)
-        } catch (e: Exception) {
-            result.error("ERROR", "Failed to export public key: ${e.message}", null)
-        }
-    }
-
-    private fun handleImportKey(call: MethodCall, result: Result) {
-        val keyAlias = call.argument<String>("keyAlias")
-        val privateKeyPem = call.argument<String>("privateKeyPem")
-        val certificateChainPem = call.argument<String>("certificateChainPem")
-
-        if (keyAlias == null || privateKeyPem == null || certificateChainPem == null) {
-            result.error("INVALID_ARGUMENT", "keyAlias, privateKeyPem, and certificateChainPem are required", null)
-            return
-        }
-
-        try {
-            // Parse the private key from PEM
-            val privateKey = parsePemPrivateKey(privateKeyPem)
-
-            // Parse the certificate chain from PEM
-            val certChain = parsePemCertificateChain(certificateChainPem)
-
-            if (certChain.isEmpty()) {
-                result.error("INVALID_ARGUMENT", "No certificates found in certificate chain", null)
-                return
-            }
-
-            // Import into Android KeyStore
-            val keyStore = KeyStore.getInstance("AndroidKeyStore")
-            keyStore.load(null)
-
-            // Set the key entry with the certificate chain
-            keyStore.setKeyEntry(keyAlias, privateKey, null, certChain.toTypedArray())
-
-            result.success(null)
-        } catch (e: Exception) {
-            result.error("ERROR", "Failed to import key: ${e.message}", null)
-        }
-    }
-
-    private fun parsePemPrivateKey(pem: String): PrivateKey {
-        // Remove PEM headers and decode base64
-        val base64Content = pem
-            .replace("-----BEGIN PRIVATE KEY-----", "")
-            .replace("-----END PRIVATE KEY-----", "")
-            .replace("-----BEGIN EC PRIVATE KEY-----", "")
-            .replace("-----END EC PRIVATE KEY-----", "")
-            .replace("\\s".toRegex(), "")
-
-        val keyBytes = Base64.getDecoder().decode(base64Content)
-
-        // Try EC first, then RSA
-        return try {
-            val keySpec = PKCS8EncodedKeySpec(keyBytes)
-            val keyFactory = KeyFactory.getInstance("EC")
-            keyFactory.generatePrivate(keySpec)
-        } catch (e: Exception) {
-            val keySpec = PKCS8EncodedKeySpec(keyBytes)
-            val keyFactory = KeyFactory.getInstance("RSA")
-            keyFactory.generatePrivate(keySpec)
-        }
-    }
-
-    private fun parsePemCertificateChain(pem: String): List<X509Certificate> {
-        val certFactory = CertificateFactory.getInstance("X.509")
-        val certificates = mutableListOf<X509Certificate>()
-
-        // Split PEM into individual certificates
-        val certPattern = Regex("-----BEGIN CERTIFICATE-----([^-]+)-----END CERTIFICATE-----")
-        val matches = certPattern.findAll(pem)
-
-        for (match in matches) {
-            val base64Content = match.groupValues[1].replace("\\s".toRegex(), "")
-            val certBytes = Base64.getDecoder().decode(base64Content)
-            val cert = certFactory.generateCertificate(certBytes.inputStream()) as X509Certificate
-            certificates.add(cert)
-        }
-
-        return certificates
-    }
-
-    private fun handleCreateCSR(call: MethodCall, result: Result) {
-        val keyAlias = call.argument<String>("keyAlias")
-        val commonName = call.argument<String>("commonName")
-        val organization = call.argument<String>("organization")
-        val organizationalUnit = call.argument<String>("organizationalUnit")
-        val country = call.argument<String>("country")
-        val state = call.argument<String>("state")
-        val locality = call.argument<String>("locality")
-
-        if (keyAlias == null || commonName == null) {
-            result.error("INVALID_ARGUMENT", "keyAlias and commonName are required", null)
-            return
-        }
-
-        try {
-            val config = CertificateManager.CertificateConfig(
-                commonName = commonName,
-                organization = organization,
-                organizationalUnit = organizationalUnit,
-                country = country,
-                state = state,
-                locality = locality
-            )
-
-            val csr = CertificateManager.createCSR(keyAlias, config)
-            result.success(csr)
-        } catch (e: Exception) {
-            result.error("ERROR", "Failed to create CSR: ${e.message}", null)
-        }
-    }
-
-    private fun handleEnrollHardwareKey(call: MethodCall, result: Result) {
-        val keyAlias = call.argument<String>("keyAlias")
-        val signingServerUrl = call.argument<String>("signingServerUrl")
-        val bearerToken = call.argument<String>("bearerToken")
-        val commonName = call.argument<String>("commonName") ?: "C2PA Hardware Key"
-        val organization = call.argument<String>("organization") ?: "C2PA App"
-        val useStrongBox = call.argument<Boolean>("useStrongBox") ?: false
-
-        if (keyAlias == null || signingServerUrl == null) {
-            result.error("INVALID_ARGUMENT", "keyAlias and signingServerUrl are required", null)
-            return
-        }
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val keyStore = KeyStore.getInstance("AndroidKeyStore")
-                keyStore.load(null)
-
-                // Delete existing key to ensure fresh enrollment
-                if (keyStore.containsAlias(keyAlias)) {
-                    keyStore.deleteEntry(keyAlias)
-                }
-
-                // Create hardware key
-                if (useStrongBox) {
-                    val config = StrongBoxSigner.Config(
-                        keyTag = keyAlias,
-                        requireUserAuthentication = false
-                    )
-                    StrongBoxSigner.createKey(config)
-                } else {
-                    CertificateManager.generateHardwareKey(keyAlias, requireStrongBox = false)
-                }
-
-                // Generate CSR
-                val certConfig = CertificateManager.CertificateConfig(
-                    commonName = commonName,
-                    organization = organization,
-                    country = "US"
-                )
-                val csr = CertificateManager.createCSR(keyAlias, certConfig)
-
-                // Submit CSR to signing server
-                val enrollUrl = "$signingServerUrl/api/v1/certificates/sign"
-                val requestBody = org.json.JSONObject().apply {
-                    put("csr", csr)
-                }.toString()
-
-                val url = java.net.URL(enrollUrl)
-                val connection = url.openConnection() as java.net.HttpURLConnection
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.connectTimeout = 30000
-                connection.readTimeout = 30000
-
-                bearerToken?.let {
-                    connection.setRequestProperty("Authorization", "Bearer $it")
-                }
-
-                connection.outputStream.use { output ->
-                    output.write(requestBody.toByteArray())
-                }
-
-                if (connection.responseCode == 200) {
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    connection.disconnect()
-
-                    val responseJson = org.json.JSONObject(response)
-                    val certChain = responseJson.getString("certificate_chain")
-
-                    val resultMap = HashMap<String, Any?>()
-                    resultMap["certificateChain"] = certChain
-                    resultMap["keyAlias"] = keyAlias
-
-                    mainScope.launch {
-                        result.success(resultMap)
-                    }
-                } else {
-                    val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        ?: "HTTP ${connection.responseCode}"
-                    connection.disconnect()
-
-                    mainScope.launch {
-                        result.error("ENROLLMENT_ERROR", "Certificate enrollment failed: $error", null)
-                    }
-                }
-            } catch (e: Exception) {
-                mainScope.launch {
-                    result.error("ERROR", "Hardware key enrollment failed: ${e.message}", null)
-                }
-            }
-        }
-    }
-
-    // =============================================================================
-    // Builder Handle Management
-    // =============================================================================
-
-    private fun storeBuilder(builder: Builder): Int {
-        builderLock.lock()
-        try {
-            val handle = nextBuilderHandle++
-            builders[handle] = builder
-            return handle
-        } finally {
-            builderLock.unlock()
-        }
-    }
-
-    private fun getBuilder(handle: Int): Builder? {
-        builderLock.lock()
-        try {
-            return builders[handle]
-        } finally {
-            builderLock.unlock()
-        }
-    }
-
-    private fun removeBuilder(handle: Int): Builder? {
-        builderLock.lock()
-        try {
-            return builders.remove(handle)
-        } finally {
-            builderLock.unlock()
-        }
-    }
-
-    // =============================================================================
-    // Settings Handle Management
-    // =============================================================================
-
-    private fun storeSettings(settingsObj: C2PASettings): Int {
-        settingsLock.lock()
-        try {
-            val handle = nextSettingsHandle++
-            settings[handle] = settingsObj
-            return handle
-        } finally {
-            settingsLock.unlock()
-        }
-    }
-
-    private fun getSettings(handle: Int): C2PASettings? {
-        settingsLock.lock()
-        try {
-            return settings[handle]
-        } finally {
-            settingsLock.unlock()
-        }
-    }
-
-    private fun removeSettings(handle: Int): C2PASettings? {
-        settingsLock.lock()
-        try {
-            return settings.remove(handle)
-        } finally {
-            settingsLock.unlock()
-        }
-    }
-
-    // =============================================================================
-    // Context Handle Management
-    // =============================================================================
-
-    private fun storeContext(contextObj: C2PAContext): Int {
-        contextLock.lock()
-        try {
-            val handle = nextContextHandle++
-            contexts[handle] = contextObj
-            return handle
-        } finally {
-            contextLock.unlock()
-        }
-    }
-
-    private fun getContext(handle: Int): C2PAContext? {
-        contextLock.lock()
-        try {
-            return contexts[handle]
-        } finally {
-            contextLock.unlock()
-        }
-    }
-
-    private fun removeContext(handle: Int): C2PAContext? {
-        contextLock.lock()
-        try {
-            return contexts.remove(handle)
-        } finally {
-            contextLock.unlock()
-        }
+import org.contentauth.c2pa.C2PASettings
+import org.contentauth.c2pa.HttpResolver
+import org.contentauth.c2pa.HttpResponse
+import org.contentauth.c2pa.ProgressObserver
+import org.contentauth.c2pa.Reader
+import org.contentauth.c2pa.Stream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+
+/**
+ * Flutter plugin bridging the Dart C2PA API to c2pa-android through the
+ * Pigeon-generated [C2paHostApi] and [C2paFlutterApi].
+ *
+ * Threading model: every call that touches a builder, reader, settings or
+ * context runs on one serial worker thread, in the order Dart sent it. That
+ * keeps the main thread free while signing (callback signers, progress and
+ * HTTP resolvers call back into Dart on the main thread and block the worker
+ * until Dart answers), and it means `builderDispose` can never free a builder
+ * that an earlier call is still using. Key management runs on a separate pool
+ * so a Dart signing callback can use it while the worker is blocked.
+ * `contextCancel` runs immediately, since it must reach an operation that is
+ * occupying the worker.
+ */
+class C2paPlugin : FlutterPlugin, C2paHostApi {
+    private var flutterApi: C2paFlutterApi? = null
+    private var appContext: android.content.Context? = null
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+    private var worker: ExecutorService = newWorker()
+    private val auxPool: ExecutorService = Executors.newCachedThreadPool { r -> Thread(r, "c2pa-flutter-aux") }
+
+    private val builders = HandleRegistry<Builder>()
+    private val settingsHandles = HandleRegistry<C2PASettings>()
+    private val contexts = HandleRegistry<C2PAContext>()
+
+    /** Settings applied by `loadSettings` to readers and builders created without a context. Worker thread only. */
+    private var defaultSettings: C2PASettings? = null
+
+    private val signers = SignerFactory { callbackId, data ->
+        callDart("sign") { api, reply -> api.sign(callbackId, data, reply) }
+    }
+    private val keys = KeyManagement { appContext }
+
+    private fun newWorker(): ExecutorService =
+        Executors.newSingleThreadExecutor { r -> Thread(r, "c2pa-flutter-worker") }
+
+    override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        C2paHostApi.setUp(binding.binaryMessenger, this)
+        flutterApi = C2paFlutterApi(binding.binaryMessenger)
+        appContext = binding.applicationContext
+        if (worker.isShutdown) worker = newWorker()
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        channel.setMethodCallHandler(null)
-        context = null
+        C2paHostApi.setUp(binding.binaryMessenger, null)
+        flutterApi = null
+        appContext = null
+        worker.execute {
+            builders.drain().forEach { runCatching { it.close() } }
+            settingsHandles.drain().forEach { runCatching { it.close() } }
+            contexts.drain().forEach { runCatching { it.close() } }
+            defaultSettings?.let { runCatching { it.close() } }
+            defaultSettings = null
+        }
+        worker.shutdown()
+    }
 
-        // Clean up any remaining builders
-        builderLock.lock()
-        try {
-            for (builder in builders.values) {
-                try {
-                    builder.close()
-                } catch (e: Exception) {
-                    // Ignore cleanup errors
-                }
-            }
-            builders.clear()
-        } finally {
-            builderLock.unlock()
+    // =========================================================================
+    // Lanes and result plumbing
+    // =========================================================================
+
+    /** Runs [block] on the serial worker and replies on the main thread. */
+    private fun <T> onWorker(callback: (Result<T>) -> Unit, block: () -> T) =
+        worker.execute { deliver(callback, block) }
+
+    /** Runs [block] on the key-management pool and replies on the main thread. */
+    private fun <T> onAux(callback: (Result<T>) -> Unit, block: () -> T) =
+        auxPool.execute { deliver(callback, block) }
+
+    private fun <T> deliver(callback: (Result<T>) -> Unit, block: () -> T) {
+        val result = try {
+            Result.success(block())
+        } catch (e: Exception) {
+            Result.failure(toFlutterError(e))
+        }
+        mainHandler.post { callback(result) }
+    }
+
+    /** Maps a failure to the error codes Dart's C2paException understands. */
+    private fun toFlutterError(e: Throwable): FlutterError =
+        when (e) {
+            is FlutterError -> e
+            is PluginError -> FlutterError(e.code, e.message)
+            is C2PAError -> FlutterError("C2PA_ERROR", e.message ?: e.toString())
+            else -> FlutterError("ERROR", e.message ?: e.toString())
         }
 
-        // Clean up any remaining settings
-        settingsLock.lock()
-        try {
-            for (settingsObj in settings.values) {
-                try {
-                    settingsObj.close()
-                } catch (e: Exception) {
-                    // Ignore cleanup errors
+    /**
+     * Calls Dart on the main thread through [invoke] and blocks the calling
+     * thread until it answers. Must never be called on the main thread.
+     */
+    private fun <T> callDart(name: String, invoke: (C2paFlutterApi, (Result<T>) -> Unit) -> Unit): T {
+        check(Looper.myLooper() != Looper.getMainLooper()) { "$name must not be called on the main thread" }
+        val api = flutterApi ?: throw C2PAError.Api("$name: the Flutter engine is detached")
+        val latch = CountDownLatch(1)
+        var outcome: Result<T>? = null
+        mainHandler.post {
+            try {
+                invoke(api) { result ->
+                    outcome = result
+                    latch.countDown()
+                }
+            } catch (e: Exception) {
+                outcome = Result.failure(e)
+                latch.countDown()
+            }
+        }
+        latch.await()
+        return outcome!!.getOrElse { error ->
+            val message = (error as? FlutterError)?.let { it.message ?: it.code } ?: error.message
+            throw C2PAError.Api("$name failed in Dart: $message")
+        }
+    }
+
+    // =========================================================================
+    // Version and MIME types
+    // =========================================================================
+
+    override fun getPlatformVersion(): String = "Android ${android.os.Build.VERSION.RELEASE}"
+
+    override fun getVersion(callback: (Result<String>) -> Unit) = onWorker(callback) { C2PA.version() }
+
+    override fun getSupportedReadMimeTypes(callback: (Result<List<String>>) -> Unit) =
+        onWorker(callback) { Reader.supportedMimeTypes() }
+
+    override fun getSupportedSignMimeTypes(callback: (Result<List<String>>) -> Unit) =
+        onWorker(callback) { Builder.supportedMimeTypes() }
+
+    // =========================================================================
+    // Reading
+    // =========================================================================
+
+    override fun readFile(
+        path: String,
+        mimeType: String?,
+        format: ReadFormatMessage,
+        contextHandle: Long?,
+        callback: (Result<String>) -> Unit,
+    ) = onWorker(callback) {
+        withPathReader(path, mimeType, contextHandle) { readerOutput(it, format) }
+    }
+
+    override fun readBytes(
+        data: ByteArray,
+        mimeType: String,
+        format: ReadFormatMessage,
+        contextHandle: Long?,
+        callback: (Result<String>) -> Unit,
+    ) = onWorker(callback) {
+        ByteArrayStream(data).use { stream ->
+            newReader(contextHandle, mimeType, stream).use { readerOutput(it, format) }
+        }
+    }
+
+    override fun readWithManifest(
+        path: String?,
+        data: ByteArray?,
+        mimeType: String?,
+        manifestData: ByteArray,
+        format: ReadFormatMessage,
+        contextHandle: Long?,
+        callback: (Result<String>) -> Unit,
+    ) = onWorker(callback) {
+        // c2pa-android has no context-aware form of this reader; contextHandle is ignored.
+        if ((path == null) == (data == null)) throw invalidArgument("Provide exactly one of path or data")
+        val resolvedMimeType = mimeType
+            ?: if (path != null) mimeTypeForPath(path) else throw invalidArgument("mimeType is required")
+        val stream: Stream = if (data != null) ByteArrayStream(data) else openForRead(path!!)
+        stream.use { s ->
+            Reader.fromManifestAndStream(resolvedMimeType, s, manifestData).use { readerOutput(it, format) }
+        }
+    }
+
+    override fun readFragment(
+        initPath: String,
+        fragmentPath: String,
+        mimeType: String?,
+        format: ReadFormatMessage,
+        contextHandle: Long?,
+        callback: (Result<String>) -> Unit,
+    ) = onWorker(callback) {
+        val resolvedMimeType = mimeType ?: mimeTypeForPath(initPath)
+        openForRead(initPath).use { initStream ->
+            openForRead(fragmentPath).use { fragment ->
+                withContext(contextHandle) { ctx ->
+                    val owned = if (ctx == null) C2PAContext.create() else null
+                    try {
+                        Reader.fromContext(ctx ?: owned!!).withFragment(resolvedMimeType, initStream, fragment)
+                            .use { readerOutput(it, format) }
+                    } finally {
+                        owned?.close()
+                    }
                 }
             }
-            settings.clear()
-        } finally {
-            settingsLock.unlock()
+        }
+    }
+
+    override fun extractResource(
+        data: ByteArray,
+        mimeType: String,
+        uri: String,
+        contextHandle: Long?,
+        callback: (Result<ByteArray>) -> Unit,
+    ) = onWorker(callback) {
+        ByteArrayStream(data).use { stream ->
+            newReader(contextHandle, mimeType, stream).use { reader ->
+                ByteArrayStream().use { out ->
+                    reader.resource(uri, out)
+                    out.getData()
+                }
+            }
+        }
+    }
+
+    override fun getRemoteUrl(path: String, mimeType: String?, callback: (Result<String?>) -> Unit) =
+        onWorker(callback) { withPathReader(path, mimeType, null) { it.remoteUrl() } }
+
+    override fun isManifestEmbedded(path: String, mimeType: String?, callback: (Result<Boolean>) -> Unit) =
+        onWorker(callback) { withPathReader(path, mimeType, null) { it.isEmbedded() } }
+
+    private fun readerOutput(reader: Reader, format: ReadFormatMessage): String =
+        when (format) {
+            ReadFormatMessage.JSON -> reader.json()
+            ReadFormatMessage.DETAILED -> reader.detailedJson()
+            ReadFormatMessage.CR_JSON -> reader.crJSON()
         }
 
-        // Clean up any remaining contexts
-        contextLock.lock()
-        try {
-            for (contextObj in contexts.values) {
-                try {
-                    contextObj.close()
-                } catch (e: Exception) {
-                    // Ignore cleanup errors
-                }
-            }
-            contexts.clear()
-        } finally {
-            contextLock.unlock()
+    private fun <R> withPathReader(path: String, mimeType: String?, contextHandle: Long?, block: (Reader) -> R): R =
+        openForRead(path).use { stream ->
+            newReader(contextHandle, mimeType ?: mimeTypeForPath(path), stream).use(block)
         }
+
+    // =========================================================================
+    // One-shot signing
+    // =========================================================================
+
+    override fun signBytes(
+        sourceData: ByteArray,
+        mimeType: String,
+        manifestJson: String,
+        signer: SignerMessage,
+        callback: (Result<SignResultMessage>) -> Unit,
+    ) = onWorker(callback) {
+        ByteArrayStream(sourceData).use { source ->
+            ByteArrayStream().use { dest ->
+                val result = oneShotSign(manifestJson, signer, mimeType, source, dest)
+                signResult(result, dest.getData())
+            }
+        }
+    }
+
+    override fun signFile(
+        sourcePath: String,
+        destPath: String,
+        manifestJson: String,
+        signer: SignerMessage,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) {
+        openForRead(sourcePath).use { source ->
+            openForWrite(destPath).use { dest ->
+                oneShotSign(manifestJson, signer, mimeTypeForPath(sourcePath), source, dest)
+            }
+        }
+        Unit
+    }
+
+    private fun oneShotSign(
+        manifestJson: String,
+        signer: SignerMessage,
+        mimeType: String,
+        source: Stream,
+        dest: Stream,
+    ): Builder.SignResult =
+        if (signer is SettingsSignerMessage) {
+            settingsFromSigner(signer).use { s ->
+                Builder.fromJson(manifestJson, s).use { it.signWithContext(mimeType, source, dest) }
+            }
+        } else {
+            newBuilder(null, manifestJson).use { signWith(it, signer, mimeType, source, dest) }
+        }
+
+    override fun getSignerReserveSize(signer: SignerMessage, callback: (Result<Long>) -> Unit) =
+        onWorker(callback) { signers.create(signer).use { it.reserveSize().toLong() } }
+
+    override fun composeManifest(manifestBytes: ByteArray, mimeType: String, callback: (Result<ByteArray>) -> Unit) =
+        onWorker(callback) {
+            C2PAContext.create().use { ctx ->
+                Builder.fromContext(ctx).use { it.composeManifest(mimeType, manifestBytes) }
+            }
+        }
+
+    // =========================================================================
+    // Builder lifecycle and configuration
+    // =========================================================================
+
+    override fun createBuilder(manifestJson: String, contextHandle: Long?, callback: (Result<Long>) -> Unit) =
+        onWorker(callback) { builders.store(newBuilder(contextHandle, manifestJson)).toLong() }
+
+    override fun createBuilderWithSettings(
+        manifestJson: String,
+        settingsHandle: Long,
+        callback: (Result<Long>) -> Unit,
+    ) = onWorker(callback) {
+        builders.store(Builder.fromJson(manifestJson, settingsFor(settingsHandle))).toLong()
+    }
+
+    override fun createBuilderFromArchive(
+        archiveData: ByteArray,
+        contextHandle: Long?,
+        callback: (Result<Long>) -> Unit,
+    ) = onWorker(callback) {
+        val stream = ByteArrayStream(archiveData)
+        val builder = withContext(contextHandle) { ctx ->
+            if (ctx == null) Builder.fromArchive(stream) else Builder.fromContext(ctx).withArchive(stream)
+        }
+        builders.store(builder).toLong()
+    }
+
+    override fun builderDispose(handle: Long, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { builders.remove(handle.toInt())?.close() ?: Unit }
+
+    override fun builderSetIntent(
+        handle: Long,
+        intent: ManifestIntentMessage,
+        digitalSourceType: String?,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) { builder(handle).setIntent(intent.toSdk(digitalSourceType)) }
+
+    override fun builderSetNoEmbed(handle: Long, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { builder(handle).setNoEmbed() }
+
+    override fun builderSetRemoteUrl(handle: Long, url: String, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { builder(handle).setRemoteURL(url) }
+
+    override fun builderSetBasePath(handle: Long, path: String, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { builder(handle).setBasePath(path) }
+
+    override fun builderAddResource(handle: Long, uri: String, data: ByteArray, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { ByteArrayStream(data).use { builder(handle).addResource(uri, it) } }
+
+    override fun builderAddIngredient(
+        handle: Long,
+        data: ByteArray,
+        mimeType: String,
+        ingredientJson: String?,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) {
+        ByteArrayStream(data).use { builder(handle).addIngredient(ingredientJson ?: "{}", mimeType, it) }
+    }
+
+    override fun builderAddIngredientFromFile(
+        handle: Long,
+        path: String,
+        mimeType: String?,
+        ingredientJson: String?,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) {
+        openForRead(path).use {
+            builder(handle).addIngredient(ingredientJson ?: "{}", mimeType ?: mimeTypeForPath(path), it)
+        }
+    }
+
+    override fun builderAddIngredientFromArchive(
+        handle: Long,
+        archiveData: ByteArray,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) { ByteArrayStream(archiveData).use { builder(handle).addIngredientFromArchive(it) } }
+
+    override fun builderWriteIngredientArchive(
+        handle: Long,
+        ingredientId: String,
+        callback: (Result<ByteArray>) -> Unit,
+    ) = onWorker(callback) {
+        ByteArrayStream().use {
+            builder(handle).writeIngredientArchive(ingredientId, it)
+            it.getData()
+        }
+    }
+
+    override fun builderAddAction(handle: Long, actionJson: String, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { builder(handle).addAction(parseAction(actionJson)) }
+
+    override fun builderToArchive(handle: Long, callback: (Result<ByteArray>) -> Unit) =
+        onWorker(callback) {
+            ByteArrayStream().use {
+                builder(handle).toArchive(it)
+                it.getData()
+            }
+        }
+
+    // =========================================================================
+    // Builder signing
+    // =========================================================================
+
+    override fun builderSign(
+        handle: Long,
+        sourceData: ByteArray,
+        mimeType: String,
+        signer: SignerMessage?,
+        callback: (Result<SignResultMessage>) -> Unit,
+    ) = onWorker(callback) {
+        val builder = builder(handle)
+        ByteArrayStream(sourceData).use { source ->
+            ByteArrayStream().use { dest ->
+                signResult(signWith(builder, signer, mimeType, source, dest), dest.getData())
+            }
+        }
+    }
+
+    override fun builderSignFile(
+        handle: Long,
+        sourcePath: String,
+        destPath: String,
+        mimeType: String?,
+        signer: SignerMessage?,
+        callback: (Result<SignResultMessage>) -> Unit,
+    ) = onWorker(callback) {
+        val builder = builder(handle)
+        val result = openForRead(sourcePath).use { source ->
+            openForWrite(destPath).use { dest ->
+                signWith(builder, signer, mimeType ?: mimeTypeForPath(sourcePath), source, dest)
+            }
+        }
+        signResult(result, null)
+    }
+
+    /** Signs with [signer], or with the builder's context signer when [signer] is null. */
+    private fun signWith(
+        builder: Builder,
+        signer: SignerMessage?,
+        mimeType: String,
+        source: Stream,
+        dest: Stream,
+    ): Builder.SignResult {
+        if (signer == null) return builder.signWithContext(mimeType, source, dest)
+        return signers.create(signer).use { builder.sign(mimeType, source, dest, it) }
+    }
+
+    private fun signResult(result: Builder.SignResult, signedData: ByteArray?): SignResultMessage =
+        SignResultMessage(
+            signedData = signedData,
+            manifestBytes = result.manifestBytes,
+            manifestSize = (result.manifestBytes?.size?.toLong() ?: result.size),
+        )
+
+    // =========================================================================
+    // Embeddable / data-hash / BMFF flows
+    // =========================================================================
+
+    override fun builderNeedsPlaceholder(handle: Long, mimeType: String, callback: (Result<Boolean>) -> Unit) =
+        onWorker(callback) { builder(handle).needsPlaceholder(mimeType) }
+
+    override fun builderPlaceholder(handle: Long, mimeType: String, callback: (Result<ByteArray>) -> Unit) =
+        onWorker(callback) { builder(handle).placeholder(mimeType) }
+
+    override fun builderSetDataHashExclusions(
+        handle: Long,
+        exclusions: List<DataHashExclusionMessage>,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) {
+        builder(handle).setDataHashExclusions(exclusions.map { it.start to it.length })
+    }
+
+    override fun builderUpdateHashFromBytes(
+        handle: Long,
+        mimeType: String,
+        data: ByteArray,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) { ByteArrayStream(data).use { builder(handle).updateHashFromStream(mimeType, it) } }
+
+    override fun builderUpdateHashFromFile(
+        handle: Long,
+        path: String,
+        mimeType: String?,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) {
+        openForRead(path).use { builder(handle).updateHashFromStream(mimeType ?: mimeTypeForPath(path), it) }
+    }
+
+    override fun builderSignEmbeddable(handle: Long, mimeType: String, callback: (Result<ByteArray>) -> Unit) =
+        onWorker(callback) { builder(handle).signEmbeddable(mimeType) }
+
+    override fun builderHashType(handle: Long, mimeType: String, callback: (Result<HashTypeMessage>) -> Unit) =
+        onWorker(callback) { builder(handle).hashType(mimeType).toMessage() }
+
+    override fun builderSetFixedSizeMerkle(handle: Long, fixedSizeKb: Long, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { builder(handle).setFixedSizeMerkle(fixedSizeKb) }
+
+    override fun builderHashMdatBytes(
+        handle: Long,
+        mdatId: Long,
+        data: ByteArray,
+        largeSize: Boolean,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) { builder(handle).hashMdatBytes(mdatId, data, largeSize) }
+
+    // =========================================================================
+    // Key management
+    // =========================================================================
+
+    override fun isHardwareSigningAvailable(callback: (Result<Boolean>) -> Unit) =
+        onAux(callback) { keys.isHardwareSigningAvailable() }
+
+    override fun createKey(
+        keyAlias: String,
+        algorithm: SigningAlgorithmMessage,
+        useHardware: Boolean,
+        callback: (Result<Unit>) -> Unit,
+    ) = onAux(callback) { keys.createKey(keyAlias, algorithm, useHardware) }
+
+    override fun deleteKey(keyAlias: String, callback: (Result<Boolean>) -> Unit) =
+        onAux(callback) { keys.deleteKey(keyAlias) }
+
+    override fun keyExists(keyAlias: String, callback: (Result<Boolean>) -> Unit) =
+        onAux(callback) { keys.keyExists(keyAlias) }
+
+    override fun exportPublicKey(keyAlias: String, callback: (Result<String>) -> Unit) =
+        onAux(callback) { keys.exportPublicKey(keyAlias) }
+
+    override fun importKey(
+        keyAlias: String,
+        privateKeyPem: String,
+        certificateChainPem: String,
+        callback: (Result<Unit>) -> Unit,
+    ) = onAux(callback) { keys.importKey(keyAlias, privateKeyPem, certificateChainPem) }
+
+    override fun createCSR(keyAlias: String, config: CertificateConfigMessage, callback: (Result<String>) -> Unit) =
+        onAux(callback) { keys.createCSR(keyAlias, config) }
+
+    override fun enrollHardwareKey(
+        keyAlias: String,
+        signingServerUrl: String,
+        bearerToken: String?,
+        commonName: String?,
+        organization: String?,
+        useStrongBox: Boolean,
+        callback: (Result<HardwareKeyEnrollmentMessage>) -> Unit,
+    ) = onAux(callback) {
+        keys.enrollHardwareKey(keyAlias, signingServerUrl, bearerToken, commonName, organization, useStrongBox)
+    }
+
+    override fun createSelfSignedCertificateChain(
+        keyAlias: String,
+        config: CertificateConfigMessage?,
+        callback: (Result<String>) -> Unit,
+    ) = onAux(callback) {
+        throw PluginError(
+            "NOT_IMPLEMENTED_ANDROID",
+            "createSelfSignedCertificateChain is not available in c2pa-android",
+        )
+    }
+
+    // =========================================================================
+    // Settings
+    // =========================================================================
+
+    override fun loadSettings(settings: String, format: String, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) {
+            val defaults = defaultSettings ?: C2PASettings.create().also {
+                it.updateFromString(defaultLabelsJson(), "json")
+                defaultSettings = it
+            }
+            defaults.updateFromString(settings, format.lowercase())
+            Unit
+        }
+
+    override fun createSettings(callback: (Result<Long>) -> Unit) =
+        onWorker(callback) { settingsHandles.store(C2PASettings.create()).toLong() }
+
+    override fun settingsUpdateFromString(
+        handle: Long,
+        settings: String,
+        format: String,
+        callback: (Result<Unit>) -> Unit,
+    ) = onWorker(callback) {
+        settingsFor(handle).updateFromString(settings, format.lowercase())
+        Unit
+    }
+
+    override fun settingsSetValue(handle: Long, path: String, jsonValue: String, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) {
+            settingsFor(handle).setValue(path, jsonValue)
+            Unit
+        }
+
+    override fun settingsDispose(handle: Long, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { settingsHandles.remove(handle.toInt())?.close() ?: Unit }
+
+    // =========================================================================
+    // Contexts
+    // =========================================================================
+
+    override fun createContext(
+        settingsHandle: Long?,
+        signer: SignerMessage?,
+        reportProgress: Boolean,
+        httpResolver: HttpResolverModeMessage?,
+        callback: (Result<Long>) -> Unit,
+    ) = onWorker(callback) {
+        val settings = settingsHandle?.let { settingsFor(it) }
+        val handle = contexts.reserve()
+        val context = if (signer == null && !reportProgress && httpResolver == null) {
+            settings?.let { C2PAContext.fromSettings(it) } ?: C2PAContext.create()
+        } else {
+            val builder = C2PAContextBuilder.create()
+            try {
+                settings?.let { builder.setSettings(it) }
+                signer?.let { builder.setSigner(signers.create(it)) }
+                if (reportProgress) {
+                    builder.setProgressCallback(ProgressObserver { update -> postProgress(handle, update) })
+                }
+                when (httpResolver) {
+                    null -> Unit
+                    HttpResolverModeMessage.NATIVE -> builder.setHttpResolver(OkHttpClient())
+                    HttpResolverModeMessage.CALLBACK -> builder.setHttpResolver(
+                        HttpResolver { request -> resolveInDart(handle, request) },
+                    )
+                }
+                builder.build()
+            } catch (e: Exception) {
+                builder.close()
+                throw e
+            }
+        }
+        contexts.put(handle, context)
+        handle.toLong()
+    }
+
+    override fun contextCancel(handle: Long) {
+        try {
+            contexts.get(handle.toInt())?.cancel() ?: throw invalidHandle("context")
+        } catch (e: Exception) {
+            throw toFlutterError(e)
+        }
+    }
+
+    override fun contextDispose(handle: Long, callback: (Result<Unit>) -> Unit) =
+        onWorker(callback) { contexts.remove(handle.toInt())?.close() ?: Unit }
+
+    private fun postProgress(handle: Int, update: org.contentauth.c2pa.ProgressUpdate) {
+        val phase = progressPhaseName(update.phase)
+        mainHandler.post {
+            flutterApi?.progress(handle.toLong(), phase, update.step.toLong(), update.total.toLong()) {}
+        }
+    }
+
+    private fun resolveInDart(handle: Int, request: org.contentauth.c2pa.HttpRequest): HttpResponse {
+        val response = callDart<HttpResponseMessage>("resolveHttp") { api, reply ->
+            api.resolveHttp(
+                handle.toLong(),
+                HttpRequestMessage(
+                    url = request.url,
+                    method = request.method,
+                    headers = request.headers,
+                    body = request.body,
+                ),
+                reply,
+            )
+        }
+        if (response.status !in 0L..999L) {
+            throw C2PAError.Api("HTTP resolver status ${response.status} is out of range")
+        }
+        return HttpResponse(response.status.toInt(), response.body)
+    }
+
+    // =========================================================================
+    // Handle lookup and factories
+    // =========================================================================
+
+    private fun builder(handle: Long): Builder =
+        builders.get(handle.toInt()) ?: throw invalidHandle("builder")
+
+    private fun settingsFor(handle: Long): C2PASettings =
+        settingsHandles.get(handle.toInt()) ?: throw invalidHandle("settings")
+
+    private fun contextFor(handle: Long): C2PAContext =
+        contexts.get(handle.toInt()) ?: throw invalidHandle("context")
+
+    /** Runs [block] with a context for [contextHandle], or a short-lived one built from the default settings. */
+    private fun <R> withContext(contextHandle: Long?, block: (C2PAContext?) -> R): R {
+        if (contextHandle != null) return block(contextFor(contextHandle))
+        val defaults = defaultSettings ?: return block(null)
+        // A context without callbacks may be closed once readers/builders exist.
+        return C2PAContext.fromSettings(defaults).use { block(it) }
+    }
+
+    private fun newReader(contextHandle: Long?, mimeType: String, stream: Stream): Reader =
+        withContext(contextHandle) { ctx ->
+            if (ctx == null) Reader.fromStream(mimeType, stream) else Reader.fromContext(ctx).withStream(mimeType, stream)
+        }
+
+    private fun newBuilder(contextHandle: Long?, manifestJson: String): Builder {
+        if (contextHandle != null) return Builder.fromContext(contextFor(contextHandle)).withDefinition(manifestJson)
+        val defaults = defaultSettings ?: return Builder.fromJson(manifestJson)
+        return Builder.fromJson(manifestJson, defaults)
+    }
+
+    /** Settings for a one-shot SettingsSigner, seeded the way Builder.fromJson(json) seeds its own. */
+    private fun settingsFromSigner(signer: SettingsSignerMessage): C2PASettings {
+        val settings = C2PASettings.create()
+        try {
+            settings.updateFromString(defaultLabelsJson(), "json")
+            settings.updateFromString(signer.settings, signer.format.lowercase())
+        } catch (e: Exception) {
+            settings.close()
+            throw e
+        }
+        return settings
+    }
+
+    private fun defaultLabelsJson(): String {
+        val labels = Builder.DEFAULT_CREATED_ASSERTION_LABELS.joinToString(",") { "\"$it\"" }
+        return """{"version":1,"builder":{"created_assertion_labels":[$labels]}}"""
+    }
+
+    private fun parseAction(actionJson: String): Action {
+        val obj = Json.parseToJsonElement(actionJson).jsonObject
+        val name = obj["action"]?.jsonPrimitive?.contentOrNull ?: throw invalidArgument("action is required")
+        val digitalSourceType = obj["digitalSourceType"]?.jsonPrimitive?.contentOrNull
+        val softwareAgent = obj["softwareAgent"]?.takeUnless { it is JsonNull }
+        val parameters = obj["parameters"]?.takeUnless { it is JsonNull }?.jsonObject?.toMap()
+        return Action(name, digitalSourceType, softwareAgent, parameters)
     }
 }

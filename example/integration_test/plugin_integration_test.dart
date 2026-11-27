@@ -90,7 +90,8 @@ void main() {
       });
 
       testWidgets('ValidationStatus has all expected values', (tester) async {
-        expect(ValidationStatus.values.length, 3);
+        expect(ValidationStatus.values.length, 4);
+        expect(ValidationStatus.values, contains(ValidationStatus.trusted));
         expect(ValidationStatus.values, contains(ValidationStatus.valid));
         expect(ValidationStatus.values, contains(ValidationStatus.invalid));
         expect(ValidationStatus.values, contains(ValidationStatus.unknown));
@@ -108,7 +109,7 @@ void main() {
       testWidgets('ReaderOptions has correct defaults', (tester) async {
         const options = ReaderOptions();
         expect(options.detailed, false);
-        expect(options.dataDir, isNull);
+        expect(options.context, isNull);
       });
 
       testWidgets('BuilderOptions has correct defaults', (tester) async {

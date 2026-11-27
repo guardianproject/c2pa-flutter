@@ -1,4 +1,4 @@
-/* 
+/*
 This file is licensed to you under the Apache License, Version 2.0
 (http://www.apache.org/licenses/LICENSE-2.0) or the MIT license
 (http://opensource.org/licenses/MIT), at your option.
@@ -15,7 +15,10 @@ import 'dart:typed_data';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'c2pa.dart';
-import 'c2pa_method_channel.dart';
+import 'c2pa_pigeon.dart';
+
+Never _unimplemented(String method) =>
+    throw UnimplementedError('$method() has not been implemented.');
 
 /// Platform interface for C2PA operations.
 ///
@@ -26,7 +29,7 @@ abstract class C2paPlatform extends PlatformInterface {
 
   static final Object _token = Object();
 
-  static C2paPlatform _instance = MethodChannelC2pa();
+  static C2paPlatform _instance = PigeonC2pa();
 
   /// Returns the current platform instance.
   static C2paPlatform get instance => _instance;
@@ -37,441 +40,340 @@ abstract class C2paPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  // =============================================================================
+  // ===========================================================================
   // Version and Platform Info
-  // =============================================================================
+  // ===========================================================================
 
   /// Returns the platform version string.
-  Future<String?> getPlatformVersion() {
-    throw UnimplementedError('getPlatformVersion() has not been implemented.');
-  }
+  Future<String?> getPlatformVersion() => _unimplemented('getPlatformVersion');
 
   /// Returns the C2PA library version.
-  Future<String?> getVersion() {
-    throw UnimplementedError('getVersion() has not been implemented.');
-  }
+  Future<String?> getVersion() => _unimplemented('getVersion');
 
-  // =============================================================================
-  // Reader API - Basic
-  // =============================================================================
+  // ===========================================================================
+  // Reader
+  // ===========================================================================
 
-  /// Reads a C2PA manifest from a file at [path].
-  Future<String?> readFile(String path) {
-    throw UnimplementedError('readFile() has not been implemented.');
-  }
+  /// Reads the manifest store JSON from the file at [path].
+  Future<String> readFile(String path) => _unimplemented('readFile');
 
-  /// Reads a C2PA manifest from [data] bytes with the given [mimeType].
-  Future<String?> readBytes(Uint8List data, String mimeType) {
-    throw UnimplementedError('readBytes() has not been implemented.');
-  }
+  /// Reads the manifest store JSON from [data].
+  Future<String> readBytes(Uint8List data, String mimeType) =>
+      _unimplemented('readBytes');
 
-  // =============================================================================
-  // Reader API - Enhanced
-  // =============================================================================
-
-  /// Reads a C2PA manifest from a file at [path] with optional [detailed] output and [dataDir].
-  Future<String?> readFileDetailed(
+  /// Reads the manifest store JSON (detailed when [detailed]) from a file.
+  Future<String> readFileDetailed(
     String path,
-    bool detailed,
-    String? dataDir,
-  ) {
-    throw UnimplementedError('readFileDetailed() has not been implemented.');
-  }
+    bool detailed, {
+    int? contextHandle,
+  }) => _unimplemented('readFileDetailed');
 
-  /// Reads a C2PA manifest from [data] bytes with optional [detailed] output.
-  Future<String?> readBytesDetailed(
+  /// Reads the manifest store JSON (detailed when [detailed]) from bytes.
+  Future<String> readBytesDetailed(
     Uint8List data,
     String mimeType,
-    bool detailed,
-  ) {
-    throw UnimplementedError('readBytesDetailed() has not been implemented.');
-  }
+    bool detailed, {
+    int? contextHandle,
+  }) => _unimplemented('readBytesDetailed');
 
-  /// Extracts a resource at [uri] from [data] bytes with the given [mimeType].
-  Future<Uint8List?> extractResource(
+  /// Reads the manifest store as crJSON from a file ([path]) or bytes
+  /// ([data] with [mimeType]).
+  Future<String> readCrJson({
+    String? path,
+    Uint8List? data,
+    String? mimeType,
+    int? contextHandle,
+  }) => _unimplemented('readCrJson');
+
+  /// Reads an asset whose manifest is supplied separately in [manifestData].
+  Future<String> readWithManifest({
+    String? path,
+    Uint8List? data,
+    String? mimeType,
+    required Uint8List manifestData,
+    bool detailed = false,
+    int? contextHandle,
+  }) => _unimplemented('readWithManifest');
+
+  /// Reads a fragmented BMFF asset from its init segment and one fragment.
+  Future<String> readFragment({
+    required String initPath,
+    required String fragmentPath,
+    String? mimeType,
+    bool detailed = false,
+    int? contextHandle,
+  }) => _unimplemented('readFragment');
+
+  /// Extracts the resource [uri] from the manifest store in [data].
+  Future<Uint8List> extractResource(
     Uint8List data,
     String mimeType,
-    String uri,
-  ) {
-    throw UnimplementedError('extractResource() has not been implemented.');
-  }
+    String uri, {
+    int? contextHandle,
+  }) => _unimplemented('extractResource');
 
-  /// Reads ingredient data from a file at [path] with an optional [dataDir].
-  Future<String?> readIngredientFile(String path, String? dataDir) {
-    throw UnimplementedError('readIngredientFile() has not been implemented.');
-  }
+  /// Returns the remote manifest URL of the file at [path], if any.
+  Future<String?> getRemoteUrl(String path, {String? mimeType}) =>
+      _unimplemented('getRemoteUrl');
 
-  /// Returns the remote manifest URL for a file at [path], if any.
-  /// Returns null when the file has no manifest or no remote URL.
-  Future<String?> getRemoteUrl(String path, {String? mimeType}) {
-    throw UnimplementedError('getRemoteUrl() has not been implemented.');
-  }
+  /// Whether the manifest at [path] is embedded (true) or only referenced
+  /// remotely (false).
+  Future<bool> isManifestEmbedded(String path, {String? mimeType}) =>
+      _unimplemented('isManifestEmbedded');
 
-  /// Returns whether the manifest at [path] is embedded in the file (true) or
-  /// only referenced by a remote URL (false). Returns false when no manifest is present.
-  Future<bool> isManifestEmbedded(String path, {String? mimeType}) {
-    throw UnimplementedError('isManifestEmbedded() has not been implemented.');
-  }
+  /// MIME types the native SDK can read.
+  Future<List<String>> getSupportedReadMimeTypes() =>
+      _unimplemented('getSupportedReadMimeTypes');
 
-  /// Returns the list of MIME types supported for reading.
-  Future<List<String>> getSupportedReadMimeTypes() {
-    throw UnimplementedError(
-      'getSupportedReadMimeTypes() has not been implemented.',
-    );
-  }
+  /// MIME types the native SDK can sign.
+  Future<List<String>> getSupportedSignMimeTypes() =>
+      _unimplemented('getSupportedSignMimeTypes');
 
-  /// Returns the list of MIME types supported for signing.
-  Future<List<String>> getSupportedSignMimeTypes() {
-    throw UnimplementedError(
-      'getSupportedSignMimeTypes() has not been implemented.',
-    );
-  }
+  // ===========================================================================
+  // One-shot signing
+  // ===========================================================================
 
-  // =============================================================================
-  // Signer API - Basic
-  // =============================================================================
-
-  /// Signs [sourceData] bytes with the given [mimeType], [manifestJson], and [signer].
+  /// Signs [sourceData] with [manifestJson] and [signer].
   Future<SignResult> signBytes({
     required Uint8List sourceData,
     required String mimeType,
     required String manifestJson,
     required C2paSigner signer,
-  }) {
-    throw UnimplementedError('signBytes() has not been implemented.');
-  }
+  }) => _unimplemented('signBytes');
 
-  /// Signs a file at [sourcePath] and writes the result to [destPath].
+  /// Signs the file at [sourcePath] into [destPath].
   Future<void> signFile({
     required String sourcePath,
     required String destPath,
     required String manifestJson,
     required C2paSigner signer,
-  }) {
-    throw UnimplementedError('signFile() has not been implemented.');
-  }
+  }) => _unimplemented('signFile');
 
-  // =============================================================================
-  // Builder API
-  // =============================================================================
+  /// Size in bytes the signer reserves for its signature.
+  Future<int> getSignerReserveSize(C2paSigner signer) =>
+      _unimplemented('getSignerReserveSize');
 
-  /// Creates a new manifest builder from [manifestJson].
-  Future<ManifestBuilder> createBuilder(String manifestJson) {
-    throw UnimplementedError('createBuilder() has not been implemented.');
-  }
+  /// Wraps raw `application/c2pa` manifest bytes in the framing [mimeType]
+  /// embeds.
+  Future<Uint8List> composeManifest({
+    required Uint8List manifestBytes,
+    required String mimeType,
+  }) => _unimplemented('composeManifest');
 
-  /// Creates a manifest builder from serialized [archiveData].
-  Future<ManifestBuilder> createBuilderFromArchive(Uint8List archiveData) {
-    throw UnimplementedError(
-      'createBuilderFromArchive() has not been implemented.',
-    );
-  }
+  // ===========================================================================
+  // Builder
+  // ===========================================================================
 
-  /// Sets the [intent] and optional [digitalSourceType] on the builder at [handle].
+  /// Creates a builder from a manifest definition, optionally on a context.
+  Future<ManifestBuilder> createBuilder(
+    String manifestJson, {
+    int? contextHandle,
+  }) => _unimplemented('createBuilder');
+
+  /// Restores a builder from an archive, optionally on a context.
+  Future<ManifestBuilder> createBuilderFromArchive(
+    Uint8List archiveData, {
+    int? contextHandle,
+  }) => _unimplemented('createBuilderFromArchive');
+
+  /// Creates a builder on the context [contextHandle].
+  Future<ManifestBuilder> createBuilderWithContext(
+    int contextHandle,
+    String manifestJson,
+  ) => _unimplemented('createBuilderWithContext');
+
+  /// Creates a builder on a context built from [settingsHandle].
+  Future<ManifestBuilder> createBuilderWithSettings(
+    String manifestJson,
+    int settingsHandle,
+  ) => _unimplemented('createBuilderWithSettings');
+
   Future<void> builderSetIntent(
     int handle,
     ManifestIntent intent,
     DigitalSourceType? digitalSourceType,
-  ) {
-    throw UnimplementedError('builderSetIntent() has not been implemented.');
-  }
+  ) => _unimplemented('builderSetIntent');
 
-  /// Disables manifest embedding for the builder at [handle].
-  Future<void> builderSetNoEmbed(int handle) {
-    throw UnimplementedError('builderSetNoEmbed() has not been implemented.');
-  }
+  Future<void> builderSetNoEmbed(int handle) =>
+      _unimplemented('builderSetNoEmbed');
 
-  /// Sets a remote manifest [url] on the builder at [handle].
-  Future<void> builderSetRemoteUrl(int handle, String url) {
-    throw UnimplementedError('builderSetRemoteUrl() has not been implemented.');
-  }
+  Future<void> builderSetRemoteUrl(int handle, String url) =>
+      _unimplemented('builderSetRemoteUrl');
 
-  /// Adds a resource with [uri] and [data] to the builder at [handle].
-  Future<void> builderAddResource(int handle, String uri, Uint8List data) {
-    throw UnimplementedError('builderAddResource() has not been implemented.');
-  }
+  Future<void> builderSetBasePath(int handle, String path) =>
+      _unimplemented('builderSetBasePath');
 
-  /// Adds an ingredient from [data] bytes with [mimeType] to the builder at [handle].
+  Future<void> builderAddResource(int handle, String uri, Uint8List data) =>
+      _unimplemented('builderAddResource');
+
   Future<void> builderAddIngredient(
     int handle,
     Uint8List data,
     String mimeType,
     String? ingredientJson,
-  ) {
-    throw UnimplementedError(
-      'builderAddIngredient() has not been implemented.',
-    );
-  }
+  ) => _unimplemented('builderAddIngredient');
 
-  /// Adds an ingredient from a file at [path] to the builder at [handle].
-  /// If [mimeType] is null, the native side infers it from the file extension.
   Future<void> builderAddIngredientFromFile(
     int handle,
     String path,
     String? mimeType,
     String? ingredientJson,
-  ) {
-    throw UnimplementedError(
-      'builderAddIngredientFromFile() has not been implemented.',
-    );
-  }
+  ) => _unimplemented('builderAddIngredientFromFile');
 
-  /// Adds an action from [actionJson] to the builder at [handle].
-  Future<void> builderAddAction(int handle, String actionJson) {
-    throw UnimplementedError('builderAddAction() has not been implemented.');
-  }
+  Future<void> builderAddIngredientFromArchive(int handle, Uint8List archive) =>
+      _unimplemented('builderAddIngredientFromArchive');
 
-  /// Serializes the builder at [handle] to an archive byte array.
-  Future<Uint8List> builderToArchive(int handle) {
-    throw UnimplementedError('builderToArchive() has not been implemented.');
-  }
+  Future<Uint8List> builderWriteIngredientArchive(
+    int handle,
+    String ingredientId,
+  ) => _unimplemented('builderWriteIngredientArchive');
 
-  /// Signs [sourceData] bytes using the builder at [handle] with the given [signer].
+  Future<void> builderAddAction(int handle, String actionJson) =>
+      _unimplemented('builderAddAction');
+
+  Future<Uint8List> builderToArchive(int handle) =>
+      _unimplemented('builderToArchive');
+
+  /// Signs with [signer], or with the builder's context signer when null.
   Future<BuilderSignResult> builderSign(
     int handle,
     Uint8List sourceData,
     String mimeType,
-    C2paSigner signer,
-  ) {
-    throw UnimplementedError('builderSign() has not been implemented.');
-  }
+    C2paSigner? signer,
+  ) => _unimplemented('builderSign');
 
-  /// Signs a file at [sourcePath] using the builder at [handle] and writes to [destPath].
-  Future<void> builderSignFile(
+  /// Signs a file with [signer], or with the context signer when null.
+  Future<BuilderFileSignResult> builderSignFile(
     int handle,
     String sourcePath,
     String destPath,
-    C2paSigner signer,
-  ) {
-    throw UnimplementedError('builderSignFile() has not been implemented.');
-  }
+    C2paSigner? signer, {
+    String? mimeType,
+  }) => _unimplemented('builderSignFile');
 
-  /// Disposes the builder at [handle] and releases its resources.
-  Future<void> builderDispose(int handle) {
-    throw UnimplementedError('builderDispose() has not been implemented.');
-  }
+  Future<bool> builderNeedsPlaceholder(int handle, String mimeType) =>
+      _unimplemented('builderNeedsPlaceholder');
 
-  // =============================================================================
-  // Advanced Signing API
-  // =============================================================================
+  Future<Uint8List> builderPlaceholder(int handle, String mimeType) =>
+      _unimplemented('builderPlaceholder');
 
-  /// Creates a hashed placeholder for deferred signing with the given [reservedSize] and [mimeType].
-  Future<Uint8List> createHashedPlaceholder({
-    required int builderHandle,
-    required int reservedSize,
-    required String mimeType,
-  }) {
-    throw UnimplementedError(
-      'createHashedPlaceholder() has not been implemented.',
-    );
-  }
+  Future<void> builderSetDataHashExclusions(
+    int handle,
+    List<DataHashExclusion> exclusions,
+  ) => _unimplemented('builderSetDataHashExclusions');
 
-  /// Signs a [dataHash] to produce an embeddable manifest using the given [signer].
-  Future<Uint8List> signHashedEmbeddable({
-    required int builderHandle,
-    required C2paSigner signer,
-    required String dataHash,
-    required String mimeType,
-    Uint8List? assetData,
-  }) {
-    throw UnimplementedError(
-      'signHashedEmbeddable() has not been implemented.',
-    );
-  }
+  Future<void> builderUpdateHashFromBytes(
+    int handle,
+    String mimeType,
+    Uint8List data,
+  ) => _unimplemented('builderUpdateHashFromBytes');
 
-  /// Formats [manifestBytes] as an embeddable manifest for the given [mimeType].
-  Future<Uint8List> formatEmbeddable({
-    required String mimeType,
-    required Uint8List manifestBytes,
-  }) {
-    throw UnimplementedError('formatEmbeddable() has not been implemented.');
-  }
+  Future<void> builderUpdateHashFromFile(
+    int handle,
+    String path, {
+    String? mimeType,
+  }) => _unimplemented('builderUpdateHashFromFile');
 
-  /// Returns the reserved size needed for the given [signer].
-  Future<int> getSignerReserveSize(C2paSigner signer) {
-    throw UnimplementedError(
-      'getSignerReserveSize() has not been implemented.',
-    );
-  }
+  Future<Uint8List> builderSignEmbeddable(int handle, String mimeType) =>
+      _unimplemented('builderSignEmbeddable');
 
-  // =============================================================================
-  // Key Management API
-  // =============================================================================
+  Future<C2paHashType> builderHashType(int handle, String mimeType) =>
+      _unimplemented('builderHashType');
 
-  /// Returns whether hardware-backed signing is available on this device.
-  Future<bool> isHardwareSigningAvailable() {
-    throw UnimplementedError(
-      'isHardwareSigningAvailable() has not been implemented.',
-    );
-  }
+  Future<void> builderSetFixedSizeMerkle(int handle, int fixedSizeKb) =>
+      _unimplemented('builderSetFixedSizeMerkle');
 
-  /// Creates a signing key with the given [keyAlias], [algorithm], and hardware preference.
+  Future<void> builderHashMdatBytes(
+    int handle, {
+    required int mdatId,
+    required Uint8List data,
+    bool largeSize = false,
+  }) => _unimplemented('builderHashMdatBytes');
+
+  Future<void> builderDispose(int handle) => _unimplemented('builderDispose');
+
+  // ===========================================================================
+  // Key Management
+  // ===========================================================================
+
+  Future<bool> isHardwareSigningAvailable() =>
+      _unimplemented('isHardwareSigningAvailable');
+
   Future<void> createKey({
     required String keyAlias,
     required SigningAlgorithm algorithm,
     required bool useHardware,
-  }) {
-    throw UnimplementedError('createKey() has not been implemented.');
-  }
+  }) => _unimplemented('createKey');
 
-  /// Deletes the key identified by [keyAlias].
-  Future<bool> deleteKey(String keyAlias) {
-    throw UnimplementedError('deleteKey() has not been implemented.');
-  }
+  Future<bool> deleteKey(String keyAlias) => _unimplemented('deleteKey');
 
-  /// Returns whether a key with [keyAlias] exists.
-  Future<bool> keyExists(String keyAlias) {
-    throw UnimplementedError('keyExists() has not been implemented.');
-  }
+  Future<bool> keyExists(String keyAlias) => _unimplemented('keyExists');
 
-  /// Exports the public key for [keyAlias] as a PEM string.
-  Future<String> exportPublicKey(String keyAlias) {
-    throw UnimplementedError('exportPublicKey() has not been implemented.');
-  }
+  Future<String> exportPublicKey(String keyAlias) =>
+      _unimplemented('exportPublicKey');
 
-  /// Imports a private key and certificate chain under [keyAlias].
   Future<void> importKey({
     required String keyAlias,
     required String privateKeyPem,
     required String certificateChainPem,
-  }) {
-    throw UnimplementedError('importKey() has not been implemented.');
-  }
+  }) => _unimplemented('importKey');
 
-  /// Creates a certificate signing request (CSR) for the key at [keyAlias].
   Future<String> createCSR({
     required String keyAlias,
-    required String commonName,
-    String? organization,
-    String? organizationalUnit,
-    String? country,
-    String? state,
-    String? locality,
-  }) {
-    throw UnimplementedError('createCSR() has not been implemented.');
-  }
+    required CertificateConfig config,
+  }) => _unimplemented('createCSR');
 
-  /// Enrolls a hardware key at [keyAlias] with a signing server at [signingServerUrl].
-  Future<Map<String, dynamic>> enrollHardwareKey({
+  Future<HardwareKeyEnrollment> enrollHardwareKey({
     required String keyAlias,
     required String signingServerUrl,
     String? bearerToken,
     String? commonName,
     String? organization,
     bool useStrongBox = false,
-  }) {
-    throw UnimplementedError('enrollHardwareKey() has not been implemented.');
-  }
+  }) => _unimplemented('enrollHardwareKey');
 
-  // =============================================================================
-  // Settings API
-  // =============================================================================
-
-  /// Loads global settings from a [settings] string in the given [format].
-  Future<void> loadSettings(String settings, String format) {
-    throw UnimplementedError('loadSettings() has not been implemented.');
-  }
-
-  // =============================================================================
-  // C2PASettings Handle API
-  // =============================================================================
-
-  /// Creates a new settings handle.
-  Future<int> createSettings() {
-    throw UnimplementedError('createSettings() has not been implemented.');
-  }
-
-  /// Updates the settings at [handle] from [settingsStr] in the given [format].
-  Future<void> settingsUpdateFromString(
-    int handle,
-    String settingsStr,
-    String format,
-  ) {
-    throw UnimplementedError(
-      'settingsUpdateFromString() has not been implemented.',
-    );
-  }
-
-  /// Sets a single settings [value] at [path] on the settings at [handle].
-  Future<void> settingsSetValue(int handle, String path, String value) {
-    throw UnimplementedError('settingsSetValue() has not been implemented.');
-  }
-
-  /// Disposes the settings at [handle] and releases its resources.
-  Future<void> settingsDispose(int handle) {
-    throw UnimplementedError('settingsDispose() has not been implemented.');
-  }
-
-  // =============================================================================
-  // C2PAContext Handle API
-  // =============================================================================
-
-  /// Creates a new C2PA context handle with default settings.
-  Future<int> createContext() {
-    throw UnimplementedError('createContext() has not been implemented.');
-  }
-
-  /// Creates a new C2PA context handle from the given [settingsHandle].
-  Future<int> createContextFromSettings(int settingsHandle) {
-    throw UnimplementedError(
-      'createContextFromSettings() has not been implemented.',
-    );
-  }
-
-  /// Disposes the context at [handle] and releases its resources.
-  Future<void> contextDispose(int handle) {
-    throw UnimplementedError('contextDispose() has not been implemented.');
-  }
-
-  // =============================================================================
-  // Enhanced Reader API
-  // =============================================================================
-
-  /// Reads a C2PA manifest from a file at [path] using the given [contextHandle].
-  Future<String?> readFileWithContext(
-    String path,
-    int contextHandle,
-    bool detailed,
-    String? dataDir,
-  ) {
-    throw UnimplementedError('readFileWithContext() has not been implemented.');
-  }
-
-  // =============================================================================
-  // Enhanced Builder API
-  // =============================================================================
-
-  /// Creates a manifest builder from [manifestJson] using the given [contextHandle].
-  Future<ManifestBuilder> createBuilderWithContext(
-    int contextHandle,
-    String manifestJson,
-  ) {
-    throw UnimplementedError(
-      'createBuilderWithContext() has not been implemented.',
-    );
-  }
-
-  /// Creates a manifest builder from [manifestJson] using the given [settingsHandle].
-  Future<ManifestBuilder> createBuilderWithSettings(
-    String manifestJson,
-    int settingsHandle,
-  ) {
-    throw UnimplementedError(
-      'createBuilderWithSettings() has not been implemented.',
-    );
-  }
-
-  // =============================================================================
-  // Certificate Manager API
-  // =============================================================================
-
-  /// Creates a self-signed certificate chain for the key at [keyAlias].
   Future<String> createSelfSignedCertificateChain({
     required String keyAlias,
-    Map<String, dynamic>? config,
-  }) {
-    throw UnimplementedError(
-      'createSelfSignedCertificateChain() has not been implemented.',
-    );
-  }
+    CertificateConfig? config,
+  }) => _unimplemented('createSelfSignedCertificateChain');
+
+  // ===========================================================================
+  // Settings
+  // ===========================================================================
+
+  /// Loads settings applied to readers and builders created without a
+  /// context.
+  Future<void> loadSettings(String settings, String format) =>
+      _unimplemented('loadSettings');
+
+  Future<int> createSettings() => _unimplemented('createSettings');
+
+  Future<void> settingsUpdateFromString(
+    int handle,
+    String settings,
+    String format,
+  ) => _unimplemented('settingsUpdateFromString');
+
+  Future<void> settingsSetValue(int handle, String path, Object value) =>
+      _unimplemented('settingsSetValue');
+
+  Future<void> settingsDispose(int handle) => _unimplemented('settingsDispose');
+
+  // ===========================================================================
+  // Contexts
+  // ===========================================================================
+
+  /// Creates a native context. [onProgress] and [httpResolver] stay
+  /// registered until [contextDispose].
+  Future<int> createContext({
+    int? settingsHandle,
+    C2paSigner? signer,
+    void Function(C2paProgress progress)? onProgress,
+    C2paHttpResolver? httpResolver,
+  }) => _unimplemented('createContext');
+
+  /// Cancels every operation running on the context.
+  Future<void> contextCancel(int handle) => _unimplemented('contextCancel');
+
+  Future<void> contextDispose(int handle) => _unimplemented('contextDispose');
 }

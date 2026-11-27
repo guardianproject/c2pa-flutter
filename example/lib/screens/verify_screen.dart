@@ -255,6 +255,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
     String statusText;
 
     switch (store.validationStatus) {
+      case ValidationStatus.trusted:
+        statusColor = Colors.green;
+        statusIcon = Icons.verified;
+        statusText = 'Trusted C2PA Manifest';
       case ValidationStatus.valid:
         statusColor = Colors.green;
         statusIcon = Icons.verified;
@@ -503,6 +507,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
   Widget _buildValidationBadge(ValidationStatus status) {
     switch (status) {
+      case ValidationStatus.trusted:
       case ValidationStatus.valid:
         return Icon(Icons.check_circle, color: Colors.green[600], size: 20);
       case ValidationStatus.invalid:

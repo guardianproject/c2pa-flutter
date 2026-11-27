@@ -402,7 +402,7 @@ void main() {
 
       final json = assertion.toJson();
       expect(json['label'], 'c2pa.actions');
-      expect((json['data'] as Map)['actions'], isA<List>());
+      expect((json['data'] as Map)['actions'], isA<List<dynamic>>());
     });
 
     test('CreativeWorkAssertion serializes correctly', () {
@@ -543,7 +543,7 @@ void main() {
 
       final json = manifest.toJson();
       expect(json['claim_generator'], 'App/1.0');
-      expect(json['claim_generator_info'], isA<List>());
+      expect(json['claim_generator_info'], isA<List<dynamic>>());
     });
   });
 
@@ -777,23 +777,20 @@ void main() {
       expect((assertion as CawgIdentityAssertion).data['signer'], 'test');
     });
 
-    test(
-      'parses cawg.ai_training_and_data_mining label to CawgTrainingMiningAssertion',
-      () {
-        final json = {
-          'label': 'cawg.ai_training_and_data_mining',
-          'data': {
-            'entries': [
-              {'use': 'aiTraining', 'notAllowed': true},
-            ],
-          },
-        };
+    test('parses cawg.ai_training_and_data_mining label to CawgTrainingMiningAssertion', () {
+      final json = {
+        'label': 'cawg.ai_training_and_data_mining',
+        'data': {
+          'entries': [
+            {'use': 'aiTraining', 'notAllowed': true},
+          ],
+        },
+      };
 
-        final assertion = AssertionDefinition.fromJson(json);
-        expect(assertion, isA<CawgTrainingMiningAssertion>());
-        expect((assertion as CawgTrainingMiningAssertion).entries.length, 1);
-      },
-    );
+      final assertion = AssertionDefinition.fromJson(json);
+      expect(assertion, isA<CawgTrainingMiningAssertion>());
+      expect((assertion as CawgTrainingMiningAssertion).entries.length, 1);
+    });
 
     test('unknown label produces CustomAssertion', () {
       final json = {

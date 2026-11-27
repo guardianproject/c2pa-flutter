@@ -30,9 +30,9 @@ import 'package:meta/meta.dart';
 /// These represent the predefined actions in the C2PA specification.
 /// Use [value] to get the string representation for JSON serialization.
 ///
-/// This list is kept in sync with the native c2pa-ios and c2pa-android SDKs
-/// (both at v0.0.9 as of this writing) — 33 `c2pa.*` actions plus 11 `font.*`
-/// actions from the Font Content Specification.
+/// This list matches the `PredefinedAction` types of c2pa-swift 0.1.0 and
+/// c2pa-android 0.1.2: 33 `c2pa.*` actions plus 11 `font.*` actions from the
+/// Font Content Specification.
 enum PredefinedAction {
   /// (visible) Textual content was inserted into the asset, such as on a text
   /// layer or as a caption.
@@ -554,7 +554,9 @@ class Shape {
           ?.map((v) => Coordinate.fromJson(v as Map<String, dynamic>))
           .toList(),
       inside: json['inside'] as bool?,
-      unit: json['unit'] != null ? UnitType.fromJson(json['unit']) : null,
+      unit: json['unit'] != null
+          ? UnitType.fromJson(json['unit'] as String)
+          : null,
     );
   }
 }

@@ -23,13 +23,13 @@ let package = Package(
         .library(name: "c2pa-flutter", targets: ["c2pa_flutter"])
     ],
     dependencies: [
-        .package(url: "https://github.com/contentauth/c2pa-ios.git", exact: "0.0.9")
+        .package(url: "https://github.com/contentauth/c2pa-swift.git", exact: "0.1.0")
     ],
     targets: [
         .target(
             name: "c2pa_flutter",
             dependencies: [
-                .product(name: "C2PA", package: "c2pa-ios")
+                .product(name: "C2PA", package: "c2pa-swift")
             ],
             resources: [
                 .process("PrivacyInfo.xcprivacy")

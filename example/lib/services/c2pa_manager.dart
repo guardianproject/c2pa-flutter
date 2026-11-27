@@ -302,11 +302,12 @@ class C2paManager extends ChangeNotifier {
   Future<ManifestStoreInfo?> readManifestEnhanced(String path) async {
     try {
       final json = await _c2pa.readFile(path);
-      if (json == null) return null;
       debugPrint('C2PA readFile JSON keys: ${(jsonDecode(json) as Map<String, dynamic>).keys.toList()}');
       final store = ManifestStoreInfo.fromJson(json);
       debugPrint('C2PA parsed: active=${store.activeManifest}, manifests=${store.manifests.length}, status=${store.validationStatus}');
       return store;
+    } on C2paManifestNotFoundException {
+      return null;
     } catch (e) {
       debugPrint('C2PA readManifestEnhanced error: $e');
       _lastError = e.toString();
@@ -448,7 +449,7 @@ class C2paManager extends ChangeNotifier {
       );
 
       builder = await _c2pa.createBuilder(manifest.toJsonString());
-      builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
+      await builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
 
       final result = await builder.sign(
         sourceData: imageData,
@@ -461,7 +462,7 @@ class C2paManager extends ChangeNotifier {
       _lastError = e.toString();
       return null;
     } finally {
-      builder?.dispose();
+      await builder?.dispose();
       _isProcessing = false;
       notifyListeners();
     }
@@ -532,7 +533,7 @@ class C2paManager extends ChangeNotifier {
       );
 
       builder = await _c2pa.createBuilder(manifest.toJsonString());
-      builder.setIntent(ManifestIntent.edit);
+      await builder.setIntent(ManifestIntent.edit);
 
       final result = await builder.sign(
         sourceData: imageData,
@@ -545,7 +546,7 @@ class C2paManager extends ChangeNotifier {
       _lastError = e.toString();
       return null;
     } finally {
-      builder?.dispose();
+      await builder?.dispose();
       _isProcessing = false;
       notifyListeners();
     }
@@ -629,7 +630,7 @@ class C2paManager extends ChangeNotifier {
       );
 
       builder = await _c2pa.createBuilder(manifest.toJsonString());
-      builder.setIntent(
+      await builder.setIntent(
         ManifestIntent.create,
         DigitalSourceType.trainedAlgorithmicMedia,
       );
@@ -645,7 +646,7 @@ class C2paManager extends ChangeNotifier {
       _lastError = e.toString();
       return null;
     } finally {
-      builder?.dispose();
+      await builder?.dispose();
       _isProcessing = false;
       notifyListeners();
     }
@@ -693,12 +694,12 @@ class C2paManager extends ChangeNotifier {
             settings,
           );
         } finally {
-          settings.dispose();
+          await settings.dispose();
         }
       } else {
         builder = await _c2pa.createBuilder(manifest.toJsonString());
       }
-      builder.setIntent(intent, digitalSourceType);
+      await builder.setIntent(intent, digitalSourceType);
 
       final result = await builder.sign(
         sourceData: imageData,
@@ -711,7 +712,7 @@ class C2paManager extends ChangeNotifier {
       _lastError = e.toString();
       return null;
     } finally {
-      builder?.dispose();
+      await builder?.dispose();
       _isProcessing = false;
       notifyListeners();
     }
