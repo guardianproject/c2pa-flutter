@@ -184,35 +184,35 @@ void main() {
       expect(builder, isNotNull);
       expect(builder.handle, greaterThan(0));
 
-      builder.dispose();
+      await builder.dispose();
     });
 
     testWidgets('ManifestBuilder can set intent', (tester) async {
       final builder = await c2pa.createBuilder(basicManifest);
 
       // Should not throw
-      builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
-      builder.setIntent(ManifestIntent.edit);
+      await builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
+      await builder.setIntent(ManifestIntent.edit);
 
-      builder.dispose();
+      await builder.dispose();
     });
 
     testWidgets('ManifestBuilder can add actions', (tester) async {
       final builder = await c2pa.createBuilder(basicManifest);
 
-      builder.addAction(ActionConfig(
+      await builder.addAction(ActionConfig(
         action: 'c2pa.created',
         softwareAgent: 'c2pa_flutter_test',
         digitalSourceType: DigitalSourceType.digitalCapture,
       ));
 
-      builder.addAction(ActionConfig(
+      await builder.addAction(ActionConfig(
         action: 'c2pa.edited',
         when: DateTime.now(),
         softwareAgent: 'c2pa_flutter_test',
       ));
 
-      builder.dispose();
+      await builder.dispose();
     });
 
     testWidgets('ManifestBuilder sign produces result', (tester) async {
@@ -220,7 +220,7 @@ void main() {
       final imageBytes = byteData.buffer.asUint8List();
 
       final builder = await c2pa.createBuilder(basicManifest);
-      builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
+      await builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
 
       final signer = PemSigner(
         algorithm: SigningAlgorithm.es256,
@@ -238,19 +238,19 @@ void main() {
       expect(result.signedData.length, greaterThan(imageBytes.length));
       expect(result.manifestSize, greaterThan(0));
 
-      builder.dispose();
+      await builder.dispose();
     });
 
     testWidgets('ManifestBuilder toArchive produces archive', (tester) async {
       final builder = await c2pa.createBuilder(basicManifest);
-      builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
+      await builder.setIntent(ManifestIntent.create, DigitalSourceType.digitalCapture);
 
       final archive = await builder.toArchive();
 
       expect(archive.data, isNotNull);
       expect(archive.data.length, greaterThan(0));
 
-      builder.dispose();
+      await builder.dispose();
     });
   });
 

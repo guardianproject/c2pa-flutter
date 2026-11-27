@@ -11,7 +11,7 @@
 #   make help         - Show this help message
 
 .PHONY: all setup test test-unit test-integration lint format format-check \
-        build build-ios build-android clean coverage fixtures ci help
+        build build-ios build-android clean coverage fixtures pigeon ci help
 
 # Default target
 all: test build
@@ -107,6 +107,12 @@ lint:
 format:
 	@echo "Formatting Dart code..."
 	dart format lib/ test/ example/lib/ example/integration_test/
+
+# Regenerate the Dart, Kotlin and Swift bindings from pigeons/c2pa_api.dart.
+pigeon:
+	@echo "Generating Pigeon bindings..."
+	dart run pigeon --input pigeons/c2pa_api.dart
+	dart format lib/src/c2pa_api.g.dart
 
 ## Check formatting without making changes
 format-check:
@@ -289,6 +295,7 @@ help:
 	@echo "  lint               Run Flutter analyze"
 	@echo "  format             Format all Dart code"
 	@echo "  format-check       Check code formatting"
+	@echo "  pigeon             Regenerate the Pigeon bindings"
 	@echo ""
 	@echo "Building:"
 	@echo "  build              Build for all platforms"

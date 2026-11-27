@@ -460,7 +460,7 @@ void main() {
 
       test('missing alg produces error', () {
         final settings = localSignerSettings();
-        (settings['signer'] as Map)['local'].remove('alg');
+        ((settings['signer'] as Map)['local'] as Map).remove('alg');
         final result = validateSettings(settings);
         expect(result.hasErrors, isTrue);
         expect(
@@ -471,7 +471,7 @@ void main() {
 
       test('missing sign_cert produces error', () {
         final settings = localSignerSettings();
-        (settings['signer'] as Map)['local'].remove('sign_cert');
+        ((settings['signer'] as Map)['local'] as Map).remove('sign_cert');
         final result = validateSettings(settings);
         expect(result.hasErrors, isTrue);
         expect(
@@ -482,7 +482,7 @@ void main() {
 
       test('missing private_key produces error', () {
         final settings = localSignerSettings();
-        (settings['signer'] as Map)['local'].remove('private_key');
+        ((settings['signer'] as Map)['local'] as Map).remove('private_key');
         final result = validateSettings(settings);
         expect(result.hasErrors, isTrue);
         expect(
@@ -584,7 +584,7 @@ void main() {
 
       test('missing url produces error', () {
         final settings = remoteSignerSettings();
-        (settings['signer'] as Map)['remote'].remove('url');
+        ((settings['signer'] as Map)['remote'] as Map).remove('url');
         final result = validateSettings(settings);
         expect(result.hasErrors, isTrue);
         expect(
@@ -595,7 +595,7 @@ void main() {
 
       test('missing alg produces error', () {
         final settings = remoteSignerSettings();
-        (settings['signer'] as Map)['remote'].remove('alg');
+        ((settings['signer'] as Map)['remote'] as Map).remove('alg');
         final result = validateSettings(settings);
         expect(result.hasErrors, isTrue);
         expect(
@@ -606,7 +606,7 @@ void main() {
 
       test('missing sign_cert produces error', () {
         final settings = remoteSignerSettings();
-        (settings['signer'] as Map)['remote'].remove('sign_cert');
+        ((settings['signer'] as Map)['remote'] as Map).remove('sign_cert');
         final result = validateSettings(settings);
         expect(result.hasErrors, isTrue);
         expect(

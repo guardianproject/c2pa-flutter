@@ -193,7 +193,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         useStrongBox: true,
       );
 
-      final certChain = result['certificateChain'] as String;
+      final certChain = result.certificateChainPem;
 
       if (!mounted) return;
       setState(() {

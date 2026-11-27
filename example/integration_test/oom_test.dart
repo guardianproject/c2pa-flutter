@@ -83,11 +83,16 @@ void main() {
     testCert = await rootBundle.loadString('assets/test_certs/test_es256_cert.pem');
   });
 
+  // The heap-filling helper channel exists only in the Android example app.
+  final skipOnIos = !Platform.isAndroid;
+
   tearDown(() async {
-    await releaseJvmHeap();
+    if (Platform.isAndroid) await releaseJvmHeap();
   });
 
-  testWidgets('signFile under memory pressure does not OOM', (tester) async {
+  testWidgets('signFile under memory pressure does not OOM', skip: skipOnIos, (
+    tester,
+  ) async {
     // Step 1: Fill JVM heap to simulate post-camera memory state.
     // Leave ~15MB free, matching crashlytics data (devices had 7-16MB free).
     final memStats = await fillJvmHeap(targetFreeBytes: 15 * 1024 * 1024);
@@ -102,7 +107,9 @@ void main() {
     await createMp4(videoFile, 15 * 1024 * 1024);
 
     final manifest = jsonEncode({
-      'claim_generator': 'c2pa_flutter_oom_test/1.0',
+      'claim_generator_info': [
+          {'name': 'c2pa_flutter_oom_test', 'version': '1.0'},
+        ],
       'title': 'OOM Test',
       'format': 'video/mp4',
       'assertions': [
@@ -110,7 +117,10 @@ void main() {
           'label': 'c2pa.actions',
           'data': {
             'actions': [
-              {'action': 'c2pa.created'}
+              {
+                  'action': 'c2pa.created',
+                  'digitalSourceType': 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture',
+                }
             ]
           }
         }
@@ -134,9 +144,9 @@ void main() {
         manifestJson: manifest,
         signer: signer,
       );
-    } on PlatformException catch (e) {
-      // C2PA error is fine — means plugin survived without crashing
-      expect(e.code, anyOf('C2PA_ERROR', 'ERROR'));
+    } on C2paException catch (e) {
+      // An SDK error is fine: the plugin survived without crashing.
+      expect(e, isA<C2paException>());
     }
 
     // Cleanup

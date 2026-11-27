@@ -12,9 +12,9 @@ each license.
 
 /// Type-safe C2PA settings definition.
 ///
-/// Mirrors the `C2PASettingsDefinition` type exposed by c2pa-ios and
-/// c2pa-android v0.0.9. Serializes to the same JSON shape both native SDKs
-/// accept (snake_case keys). Use with [C2paSettings.updateFromDefinition]
+/// Modelled on the `C2PASettingsDefinition` types of c2pa-swift and
+/// c2pa-android. Serializes to the JSON shape c2pa-rs settings use
+/// (snake_case keys). Use with `C2paSettings.updateFromDefinition`
 /// to apply typed settings to a settings handle.
 library;
 

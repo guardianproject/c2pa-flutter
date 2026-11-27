@@ -8,12 +8,12 @@ name: CI
 on:
   push:
     branches: [main, develop]
+  # Every pull request, including ones stacked on another PR's branch.
   pull_request:
-    branches: [main, develop]
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.38.6'
+  FLUTTER_VERSION: '3.47.9'
 
 jobs:
   # =============================================================================
@@ -40,6 +40,12 @@ jobs:
 
       - name: Check formatting
         run: dart format --set-exit-if-changed lib/ test/
+
+      - name: Check the Pigeon bindings are current
+        run: |
+          dart run pigeon --input pigeons/c2pa_api.dart
+          dart format lib/src/c2pa_api.g.dart
+          git diff --exit-code -- lib/src/c2pa_api.g.dart android/src/main/kotlin ios/c2pa_flutter/Sources
 
       - name: Run analyzer
         run: flutter analyze --no-fatal-infos
@@ -125,7 +131,7 @@ jobs:
   # =============================================================================
   build-ios:
     name: Build iOS
-    runs-on: macos-15
+    runs-on: macos-26
     needs: unit-tests
     steps:
       - name: Checkout code
@@ -134,10 +140,18 @@ jobs:
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.4"
+          xcode-version: latest-stable
 
       - name: Verify Xcode version
-        run: xcodebuild -version
+        # c2pa-swift 0.1.x declares swift-tools-version 6.3 (Xcode 26.4+).
+        run: |
+          xcodebuild -version
+          version=$(xcodebuild -version | awk '/^Xcode/ {print $2}')
+          major=${version%%.*}; rest=${version#*.}; minor=${rest%%.*}
+          if [ "$major" -lt 26 ] || { [ "$major" -eq 26 ] && [ "$minor" -lt 4 ]; }; then
+            echo "Xcode $version is older than 26.4, which c2pa-swift requires"
+            exit 1
+          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -149,9 +163,9 @@ jobs:
       - name: Cache Xcode DerivedData
         uses: irgaly/xcode-cache@v1
         with:
-          key: xcode-deriveddata-${{ runner.os }}-${{ hashFiles('example/pubspec.lock', 'ios/c2pa_flutter/Package.swift') }}
+          key: xcode-deriveddata-${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('example/pubspec.lock', 'ios/c2pa_flutter/Package.swift') }}
           restore-keys: |
-            xcode-deriveddata-${{ runner.os }}-
+            xcode-deriveddata-${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
 
       - name: Install dependencies
         run: |
@@ -204,7 +218,7 @@ jobs:
           api-level: 34
           arch: x86_64
           profile: Nexus 6
-          script: cd example && flutter test integration_test/plugin_integration_test.dart
+          script: cd example && flutter test integration_test/
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
 
@@ -213,11 +227,8 @@ jobs:
   # =============================================================================
   integration-tests-ios:
     name: Integration Tests (iOS)
-    runs-on: macos-15
+    runs-on: macos-26
     needs: build-ios
-    env:
-      DEVICE_NAME: "iPhone 16"
-      IOS_VERSION: "18.5"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -225,10 +236,18 @@ jobs:
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.4"
+          xcode-version: latest-stable
 
       - name: Verify Xcode version
-        run: xcodebuild -version
+        # c2pa-swift 0.1.x declares swift-tools-version 6.3 (Xcode 26.4+).
+        run: |
+          xcodebuild -version
+          version=$(xcodebuild -version | awk '/^Xcode/ {print $2}')
+          major=${version%%.*}; rest=${version#*.}; minor=${rest%%.*}
+          if [ "$major" -lt 26 ] || { [ "$major" -eq 26 ] && [ "$minor" -lt 4 ]; }; then
+            echo "Xcode $version is older than 26.4, which c2pa-swift requires"
+            exit 1
+          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -240,9 +259,9 @@ jobs:
       - name: Cache Xcode DerivedData
         uses: irgaly/xcode-cache@v1
         with:
-          key: xcode-deriveddata-${{ runner.os }}-${{ hashFiles('example/pubspec.lock', 'ios/c2pa_flutter/Package.swift') }}
+          key: xcode-deriveddata-${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('example/pubspec.lock', 'ios/c2pa_flutter/Package.swift') }}
           restore-keys: |
-            xcode-deriveddata-${{ runner.os }}-
+            xcode-deriveddata-${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
 
       - name: Install dependencies
         run: |
@@ -255,76 +274,60 @@ jobs:
 
       - name: Ensure Simulator is Available
         run: |
-          echo "Looking for simulator: $DEVICE_NAME with iOS $IOS_VERSION"
-
-          # List available runtimes
-          echo "Available runtimes:"
-          xcrun simctl list runtimes
-
-          # List available device types
-          echo "Available iPhone device types:"
-          xcrun simctl list devicetypes | grep -i iphone | head -20
-
-          # Check if the simulator already exists (use exact match with trailing space+paren to avoid matching "iPhone 16 Pro" etc)
-          EXISTING_UDID=$(xcrun simctl list devices "$IOS_VERSION" | grep -E "$DEVICE_NAME \(" | grep -oE '[A-F0-9-]{36}' | head -1)
-
-          if [ -n "$EXISTING_UDID" ]; then
-            echo "Simulator found with UDID: $EXISTING_UDID"
-          else
-            echo "Simulator not found, creating one..."
-
-            # Get the runtime identifier
-            RUNTIME_ID=$(xcrun simctl list runtimes | grep "iOS $IOS_VERSION" | grep -oE 'com.apple.CoreSimulator.SimRuntime.iOS-[0-9-]+' | head -1)
-
-            if [ -z "$RUNTIME_ID" ]; then
-              echo "ERROR: iOS $IOS_VERSION runtime not found"
-              echo "Available iOS runtimes:"
-              xcrun simctl list runtimes | grep iOS
-              exit 1
-            fi
-
-            echo "Using runtime: $RUNTIME_ID"
-
-            # Get the device type identifier (use exact match)
-            DEVICE_TYPE=$(xcrun simctl list devicetypes | grep -E "^$DEVICE_NAME \(" | grep -oE 'com.apple.CoreSimulator.SimDeviceType.[^,)]+' | head -1)
-
-            if [ -z "$DEVICE_TYPE" ]; then
-              echo "ERROR: Device type for '$DEVICE_NAME' not found"
-              echo "Available iPhone device types:"
-              xcrun simctl list devicetypes | grep -i iphone
-              exit 1
-            fi
-
-            echo "Using device type: $DEVICE_TYPE"
-
-            # Create the simulator
-            EXISTING_UDID=$(xcrun simctl create "$DEVICE_NAME" "$DEVICE_TYPE" "$RUNTIME_ID")
-            echo "Created simulator with UDID: $EXISTING_UDID"
+          # Use the newest installed iOS runtime and an iPhone it supports.
+          RUNTIME_ID=$(xcrun simctl list runtimes --json | python3 -c '
+          import json, sys
+          rts = [r for r in json.load(sys.stdin)["runtimes"] if r["platform"] == "iOS" and r["isAvailable"]]
+          rts.sort(key=lambda r: [int(p) for p in r["version"].split(".")])
+          print(rts[-1]["identifier"] if rts else "")
+          ')
+          if [ -z "$RUNTIME_ID" ]; then
+            echo "ERROR: no iOS simulator runtime installed"
+            xcrun simctl list runtimes
+            exit 1
           fi
+          DEVICE_TYPE=$(xcrun simctl list runtimes --json | python3 -c '
+          import json, sys
+          rt = next(r for r in json.load(sys.stdin)["runtimes"] if r["identifier"] == sys.argv[1])
+          phones = [d for d in rt.get("supportedDeviceTypes", []) if d["productFamily"] == "iPhone" and "Pro" not in d["name"] and "Plus" not in d["name"]]
+          print(phones[-1]["identifier"] if phones else "")
+          ' "$RUNTIME_ID")
+          echo "Runtime: $RUNTIME_ID"
+          echo "Device type: $DEVICE_TYPE"
+          DEVICE_ID=$(xcrun simctl create "c2pa-ci" "$DEVICE_TYPE" "$RUNTIME_ID")
+          xcrun simctl boot "$DEVICE_ID"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
 
-          # Boot the simulator if not already booted
-          STATE=$(xcrun simctl list devices | grep "$EXISTING_UDID" | grep -oE '\(Booted\)|\(Shutdown\)' | tr -d '()')
-
-          if [ "$STATE" != "Booted" ]; then
-            echo "Booting simulator..."
-            xcrun simctl boot "$EXISTING_UDID" || true
-          fi
-
-          # Wait for the simulator to be ready
-          echo "Waiting for simulator to be ready..."
-          xcrun simctl bootstatus "$EXISTING_UDID" -b
-
-          echo "Simulator is ready!"
-          xcrun simctl list devices | grep -E "$DEVICE_NAME \("
-
-          # Export the UDID for use in subsequent steps
-          echo "DEVICE_ID=$EXISTING_UDID" >> $GITHUB_ENV
-
+      # Each file runs on its own with a verbose log. The wrapper retries an
+      # attempt that stalls in flutter's VM service discovery, which happens
+      # intermittently on hosted simulators. Every file runs even when an
+      # earlier one fails; the step fails at the end if any did.
       - name: Run integration tests
-        timeout-minutes: 30
+        timeout-minutes: 180
         run: |
           cd example
-          flutter test integration_test/plugin_integration_test.dart -d "$DEVICE_ID" --ignore-timeouts
+          failed=()
+          for test in integration_test/*_test.dart; do
+            name=$(basename "$test" .dart)
+            echo "::group::$name"
+            if ! ../.github/scripts/ios-integration-test.sh "$test" "../ios-$name.log"; then
+              failed+=("$name")
+            fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "Failed: ${failed[*]}"
+            exit 1
+          fi
+
+      - name: Show the tail of the test logs
+        if: always()
+        run: |
+          for f in ios-*.log; do
+            [ -f "$f" ] && { echo "=== $f"; tail -80 "$f"; }
+          done
+          exit 0
 
   # =============================================================================
   # Publish Check

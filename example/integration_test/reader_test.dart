@@ -12,8 +12,10 @@ each license.
 
 // Integration tests for C2PA Reader API
 //
-// These tests verify the reader functionality on actual platform implementations.
+// These tests read unsigned assets and an asset signed by a third party
+// (adobe_20220124_ci.jpg, from the upstream SDK fixtures) on the device.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -28,10 +30,22 @@ void main() {
 
   late C2pa c2pa;
   late Directory tempDir;
+  late Uint8List unsignedJpeg;
+  late Uint8List unsignedPng;
+  late Uint8List adobeJpeg;
+  late String adobePath;
+
+  Future<Uint8List> asset(String name) async =>
+      (await rootBundle.load('assets/test_images/$name')).buffer.asUint8List();
 
   setUpAll(() async {
     c2pa = C2pa();
     tempDir = await getTemporaryDirectory();
+    unsignedJpeg = await asset('test_unsigned.jpg');
+    unsignedPng = await asset('test_unsigned.png');
+    adobeJpeg = await asset('adobe_20220124_ci.jpg');
+    adobePath = '${tempDir.path}/adobe_20220124_ci.jpg';
+    await File(adobePath).writeAsBytes(adobeJpeg);
   });
 
   group('Version API', () {
@@ -44,119 +58,115 @@ void main() {
     testWidgets('getVersion returns C2PA library version', (tester) async {
       final version = await c2pa.getVersion();
       expect(version, isNotNull);
-      expect(version!.isNotEmpty, true);
-      // Version should contain numbers and dots
-      expect(version.contains(RegExp(r'[\d.]')), true);
+      expect(version!, contains(RegExp(r'\d+\.\d+')));
     });
   });
 
   group('Supported MIME Types', () {
-    testWidgets('getSupportedReadMimeTypes returns list', (tester) async {
-      final mimeTypes = await c2pa.getSupportedReadMimeTypes();
-      expect(mimeTypes, isA<List<String>>());
-      expect(mimeTypes.isNotEmpty, true);
-      // Should include common image types
-      expect(mimeTypes.contains('image/jpeg'), true);
-    });
-
-    testWidgets('getSupportedSignMimeTypes returns list', (tester) async {
-      final mimeTypes = await c2pa.getSupportedSignMimeTypes();
-      expect(mimeTypes, isA<List<String>>());
-      expect(mimeTypes.isNotEmpty, true);
-      // Should include JPEG at minimum
-      expect(mimeTypes.contains('image/jpeg'), true);
+    testWidgets('read and sign lists include the common formats', (
+      tester,
+    ) async {
+      final read = await c2pa.getSupportedReadMimeTypes();
+      final sign = await c2pa.getSupportedSignMimeTypes();
+      expect(read, containsAll(['image/jpeg', 'image/png', 'video/mp4']));
+      expect(sign, containsAll(['image/jpeg', 'image/png', 'video/mp4']));
     });
   });
 
-  group('Read from Bytes', () {
-    testWidgets('readBytes returns null for unsigned image', (tester) async {
-      // Load test unsigned image from assets
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
+  group('Assets without a manifest', () {
+    testWidgets('every read of an unsigned JPEG throws manifest not found', (
+      tester,
+    ) async {
+      final path = '${tempDir.path}/test_unsigned.jpg';
+      await File(path).writeAsBytes(unsignedJpeg);
+      final notFound = throwsA(isA<C2paManifestNotFoundException>());
 
-      // Read should return null for unsigned image
-      final manifestJson = await c2pa.readBytes(imageBytes, 'image/jpeg');
-      expect(manifestJson, isNull);
-    });
-
-    testWidgets('readManifestFromBytes returns null for unsigned image', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-
-      final storeInfo = await c2pa.readManifestFromBytes(imageBytes, 'image/jpeg');
-      expect(storeInfo, isNull);
-    });
-
-    testWidgets('readBytes handles PNG format', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.png');
-      final imageBytes = byteData.buffer.asUint8List();
-
-      // Should return null for unsigned PNG
-      final manifestJson = await c2pa.readBytes(imageBytes, 'image/png');
-      expect(manifestJson, isNull);
-    });
-  });
-
-  group('Read from File', () {
-    testWidgets('readFile returns null for unsigned image', (tester) async {
-      // Copy test image to temp directory for file-based tests
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-      final testFile = File('${tempDir.path}/test_unsigned.jpg');
-      await testFile.writeAsBytes(imageBytes);
-
-      final manifestJson = await c2pa.readFile(testFile.path);
-      expect(manifestJson, isNull);
-
-      // Cleanup
-      await testFile.delete();
-    });
-
-    testWidgets('readManifestFromFile returns null for unsigned image', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-      final testFile = File('${tempDir.path}/test_unsigned_manifest.jpg');
-      await testFile.writeAsBytes(imageBytes);
-
-      final storeInfo = await c2pa.readManifestFromFile(testFile.path);
-      expect(storeInfo, isNull);
-
-      await testFile.delete();
-    });
-
-    testWidgets('readManifestFromFile with detailed option', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-      final testFile = File('${tempDir.path}/test_unsigned_detailed.jpg');
-      await testFile.writeAsBytes(imageBytes);
-
-      final storeInfo = await c2pa.readManifestFromFile(
-        testFile.path,
-        options: const ReaderOptions(detailed: true),
+      await expectLater(c2pa.readFile(path), notFound);
+      await expectLater(c2pa.readBytes(unsignedJpeg, 'image/jpeg'), notFound);
+      await expectLater(c2pa.readManifestFromFile(path), notFound);
+      await expectLater(
+        c2pa.readManifestFromBytes(
+          unsignedJpeg,
+          'image/jpeg',
+          options: const ReaderOptions(detailed: true),
+        ),
+        notFound,
       );
-      expect(storeInfo, isNull);
+      await expectLater(c2pa.isManifestEmbedded(path), notFound);
+    });
 
-      await testFile.delete();
+    testWidgets('an unsigned PNG throws manifest not found', (tester) async {
+      await expectLater(
+        c2pa.readBytes(unsignedPng, 'image/png'),
+        throwsA(isA<C2paManifestNotFoundException>()),
+      );
+    });
+  });
+
+  group('Asset signed by a third party', () {
+    testWidgets('reads the manifest store from a file and from bytes', (
+      tester,
+    ) async {
+      final fromFile = await c2pa.readManifestFromFile(adobePath);
+      final fromBytes = await c2pa.readManifestFromBytes(
+        adobeJpeg,
+        'image/jpeg',
+      );
+
+      expect(fromFile.activeManifest, isNotNull);
+      expect(fromBytes.activeManifest, fromFile.activeManifest);
+      final active = fromFile.active!;
+      expect(active.claimGenerator ?? '', isNotEmpty);
+      expect(active.ingredients, isNotEmpty);
+      expect(active.signature?.issuer, isNotNull);
+    });
+
+    testWidgets('the raw JSON matches the parsed store', (tester) async {
+      final json = jsonDecode(await c2pa.readFile(adobePath))
+          as Map<String, dynamic>;
+      final store = await c2pa.readManifestFromFile(adobePath);
+      expect(json['active_manifest'], store.activeManifest);
+      expect((json['manifests'] as Map).length, store.manifests.length);
+    });
+
+    testWidgets('extracts the thumbnail the manifest references', (
+      tester,
+    ) async {
+      final store = await c2pa.readManifestFromFile(adobePath);
+      final uri = store.active!.thumbnailUri;
+      expect(uri, isNotNull);
+
+      final thumbnail = await c2pa.extractResource(
+        adobeJpeg,
+        'image/jpeg',
+        uri!,
+      );
+      // A JPEG thumbnail starts with the SOI marker.
+      expect(thumbnail.length, greaterThan(100));
+      expect(thumbnail.sublist(0, 2), [0xFF, 0xD8]);
+    });
+
+    testWidgets('reports an embedded manifest with no remote URL', (
+      tester,
+    ) async {
+      expect(await c2pa.isManifestEmbedded(adobePath), isTrue);
+      expect(await c2pa.getRemoteUrl(adobePath), isNull);
+    });
+
+    testWidgets('reads as crJSON', (tester) async {
+      final crJson = jsonDecode(await c2pa.readCrJsonFromFile(adobePath));
+      expect(crJson, isA<Map<String, dynamic>>());
+      expect(crJson as Map<String, dynamic>, isNotEmpty);
     });
   });
 
   group('Reader Options', () {
-    testWidgets('ReaderOptions can be constructed with defaults', (tester) async {
+    testWidgets('ReaderOptions can be constructed with defaults', (
+      tester,
+    ) async {
       const options = ReaderOptions();
       expect(options.detailed, false);
-      expect(options.dataDir, isNull);
-    });
-
-    testWidgets('ReaderOptions can specify dataDir', (tester) async {
-      final options = ReaderOptions(dataDir: tempDir.path);
-      expect(options.dataDir, tempDir.path);
-    });
-
-    testWidgets('ReaderOptions toMap produces correct map', (tester) async {
-      final options = ReaderOptions(detailed: true, dataDir: tempDir.path);
-      final map = options.toMap();
-      expect(map['detailed'], true);
-      expect(map['dataDir'], tempDir.path);
+      expect(options.context, isNull);
     });
   });
 }

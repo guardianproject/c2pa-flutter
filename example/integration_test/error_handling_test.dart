@@ -39,240 +39,222 @@ void main() {
     testKey = await rootBundle.loadString('assets/test_certs/test_es256_key.pem');
   });
 
+  Future<Uint8List> unsignedJpeg() async =>
+      (await rootBundle.load('assets/test_images/test_unsigned.jpg')).buffer
+          .asUint8List();
+
+  PemSigner validSigner() => PemSigner(
+    algorithm: SigningAlgorithm.es256,
+    certificatePem: testCert,
+    privateKeyPem: testKey,
+  );
+
+  final manifest = jsonEncode({
+    'claim_generator_info': [
+          {'name': 'test', 'version': '1.0'},
+        ],
+    'title': 'Test',
+    'format': 'image/jpeg',
+  });
+
   group('Invalid Input - Reader', () {
-    testWidgets('readFile with non-existent path returns null or throws', (tester) async {
-      try {
-        final result = await c2pa.readFile('/non/existent/path/image.jpg');
-        // If it doesn't throw, it should return null
-        expect(result, isNull);
-      } catch (e) {
-        // Platform may throw an exception for non-existent files
-        expect(e, isA<Exception>());
-      }
+    testWidgets('readFile with a missing path is an invalid argument', (
+      tester,
+    ) async {
+      await expectLater(
+        c2pa.readFile('/non/existent/path/image.jpg'),
+        throwsA(isA<C2paInvalidArgumentException>()),
+      );
     });
 
-    testWidgets('readBytes with empty data', (tester) async {
-      try {
-        final result = await c2pa.readBytes(Uint8List(0), 'image/jpeg');
-        // Should return null for invalid data
-        expect(result, isNull);
-      } catch (e) {
-        // May throw for invalid data
-        expect(e, isA<Exception>());
-      }
+    testWidgets('readBytes with empty data throws', (tester) async {
+      await expectLater(
+        c2pa.readBytes(Uint8List(0), 'image/jpeg'),
+        throwsA(isA<C2paException>()),
+      );
     });
 
-    testWidgets('readBytes with random bytes (not an image)', (tester) async {
-      final randomBytes = Uint8List.fromList(List.generate(100, (i) => i % 256));
-
-      try {
-        final result = await c2pa.readBytes(randomBytes, 'image/jpeg');
-        // Should return null for non-image data
-        expect(result, isNull);
-      } catch (e) {
-        // May throw for invalid image data
-        expect(e, isA<Exception>());
-      }
+    testWidgets('readBytes with bytes that are not an image throws', (
+      tester,
+    ) async {
+      final randomBytes = Uint8List.fromList(
+        List.generate(100, (i) => i % 256),
+      );
+      await expectLater(
+        c2pa.readBytes(randomBytes, 'image/jpeg'),
+        throwsA(isA<C2paException>()),
+      );
     });
 
-    testWidgets('readBytes with unsupported MIME type', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-
-      try {
-        final result = await c2pa.readBytes(imageBytes, 'application/octet-stream');
-        // May return null or throw for unsupported type
-        expect(result, anyOf(isNull, isA<String>()));
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
+    testWidgets('readBytes with an unsupported MIME type throws', (
+      tester,
+    ) async {
+      await expectLater(
+        c2pa.readBytes(await unsignedJpeg(), 'application/x-unsupported'),
+        throwsA(isA<C2paException>()),
+      );
     });
   });
 
   group('Invalid Input - Signer', () {
-    testWidgets('signBytes with invalid certificate', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-
-      final signer = PemSigner(
-        algorithm: SigningAlgorithm.es256,
-        certificatePem: 'INVALID_CERTIFICATE',
-        privateKeyPem: testKey,
-      );
-
-      final manifest = jsonEncode({
-        'claim_generator': 'test/1.0',
-        'title': 'Test',
-        'format': 'image/jpeg',
-      });
-
-      try {
-        await c2pa.signBytes(
-          sourceData: imageBytes,
+    Future<void> expectSignFails(PemSigner signer, {String? json}) async {
+      await expectLater(
+        c2pa.signBytes(
+          sourceData: await unsignedJpeg(),
           mimeType: 'image/jpeg',
-          manifestJson: manifest,
+          manifestJson: json ?? manifest,
           signer: signer,
-        );
-        fail('Should have thrown for invalid certificate');
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
+        ),
+        throwsA(isA<C2paException>()),
+      );
+    }
+
+    testWidgets('signBytes with an invalid certificate throws', (
+      tester,
+    ) async {
+      await expectSignFails(
+        PemSigner(
+          algorithm: SigningAlgorithm.es256,
+          certificatePem: 'INVALID_CERTIFICATE',
+          privateKeyPem: testKey,
+        ),
+      );
     });
 
-    testWidgets('signBytes with invalid private key', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-
-      final signer = PemSigner(
-        algorithm: SigningAlgorithm.es256,
-        certificatePem: testCert,
-        privateKeyPem: 'INVALID_PRIVATE_KEY',
+    testWidgets('signBytes with an invalid private key throws', (
+      tester,
+    ) async {
+      await expectSignFails(
+        PemSigner(
+          algorithm: SigningAlgorithm.es256,
+          certificatePem: testCert,
+          privateKeyPem: 'INVALID_PRIVATE_KEY',
+        ),
       );
-
-      final manifest = jsonEncode({
-        'claim_generator': 'test/1.0',
-        'title': 'Test',
-        'format': 'image/jpeg',
-      });
-
-      try {
-        await c2pa.signBytes(
-          sourceData: imageBytes,
-          mimeType: 'image/jpeg',
-          manifestJson: manifest,
-          signer: signer,
-        );
-        fail('Should have thrown for invalid private key');
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
     });
 
-    testWidgets('signBytes with invalid manifest JSON', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-
-      final signer = PemSigner(
-        algorithm: SigningAlgorithm.es256,
-        certificatePem: testCert,
-        privateKeyPem: testKey,
+    testWidgets('signBytes with a key of another algorithm throws', (
+      tester,
+    ) async {
+      // An ES256 key declared as ES384.
+      await expectSignFails(
+        PemSigner(
+          algorithm: SigningAlgorithm.es384,
+          certificatePem: testCert,
+          privateKeyPem: testKey,
+        ),
       );
-
-      try {
-        await c2pa.signBytes(
-          sourceData: imageBytes,
-          mimeType: 'image/jpeg',
-          manifestJson: 'NOT_VALID_JSON{{{',
-          signer: signer,
-        );
-        fail('Should have thrown for invalid JSON');
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
     });
 
-    testWidgets('signBytes with empty source data', (tester) async {
-      final signer = PemSigner(
-        algorithm: SigningAlgorithm.es256,
-        certificatePem: testCert,
-        privateKeyPem: testKey,
-      );
+    testWidgets('signBytes with invalid manifest JSON throws', (tester) async {
+      await expectSignFails(validSigner(), json: 'NOT_VALID_JSON{{{');
+    });
 
-      final manifest = jsonEncode({
-        'claim_generator': 'test/1.0',
-        'title': 'Test',
-        'format': 'image/jpeg',
-      });
-
-      try {
-        await c2pa.signBytes(
+    testWidgets('signBytes with empty source data throws', (tester) async {
+      await expectLater(
+        c2pa.signBytes(
           sourceData: Uint8List(0),
           mimeType: 'image/jpeg',
           manifestJson: manifest,
-          signer: signer,
-        );
-        fail('Should have thrown for empty source data');
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
+          signer: validSigner(),
+        ),
+        throwsA(isA<C2paException>()),
+      );
     });
 
-    testWidgets('signFile with non-existent source', (tester) async {
-      final signer = PemSigner(
-        algorithm: SigningAlgorithm.es256,
-        certificatePem: testCert,
-        privateKeyPem: testKey,
-      );
-
-      final manifest = jsonEncode({
-        'claim_generator': 'test/1.0',
-        'title': 'Test',
-        'format': 'image/jpeg',
-      });
-
-      try {
-        await c2pa.signFile(
-          sourcePath: '/non/existent/path.jpg',
-          destPath: '${tempDir.path}/output.jpg',
+    testWidgets('signBytes with an unsupported MIME type throws', (
+      tester,
+    ) async {
+      await expectLater(
+        c2pa.signBytes(
+          sourceData: await unsignedJpeg(),
+          mimeType: 'application/x-unsupported',
           manifestJson: manifest,
-          signer: signer,
-        );
-        fail('Should have thrown for non-existent file');
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
+          signer: validSigner(),
+        ),
+        throwsA(isA<C2paException>()),
+      );
+    });
+
+    testWidgets('signFile with a missing source is an invalid argument', (
+      tester,
+    ) async {
+      final dest = File('${tempDir.path}/missing_source_output.jpg');
+      if (dest.existsSync()) dest.deleteSync();
+      await expectLater(
+        c2pa.signFile(
+          sourcePath: '/non/existent/path.jpg',
+          destPath: dest.path,
+          manifestJson: manifest,
+          signer: validSigner(),
+        ),
+        throwsA(isA<C2paInvalidArgumentException>()),
+      );
+      expect(dest.existsSync(), isFalse);
     });
   });
 
   group('Invalid Input - Builder', () {
-    testWidgets('createBuilder with invalid JSON', (tester) async {
-      try {
-        await c2pa.createBuilder('NOT_VALID_JSON{{{');
-        fail('Should have thrown for invalid JSON');
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
-    });
-
-    testWidgets('createBuilderFromArchive with invalid data', (tester) async {
-      try {
-        await c2pa.createBuilderFromArchive(Uint8List.fromList([1, 2, 3, 4]));
-        fail('Should have thrown for invalid archive data');
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
-    });
-
-    testWidgets('builder sign with invalid signer', (tester) async {
-      final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
-      final imageBytes = byteData.buffer.asUint8List();
-
-      final manifest = jsonEncode({
-        'claim_generator': 'test/1.0',
-        'title': 'Test',
-        'format': 'image/jpeg',
-      });
-
-      final builder = await c2pa.createBuilder(manifest);
-
-      final invalidSigner = PemSigner(
-        algorithm: SigningAlgorithm.es256,
-        certificatePem: 'INVALID',
-        privateKeyPem: 'INVALID',
+    testWidgets('createBuilder with invalid JSON throws', (tester) async {
+      await expectLater(
+        c2pa.createBuilder('NOT_VALID_JSON{{{'),
+        throwsA(isA<C2paException>()),
       );
+    });
 
+    testWidgets('createBuilderFromArchive with invalid data throws', (
+      tester,
+    ) async {
+      await expectLater(
+        c2pa.createBuilderFromArchive(Uint8List.fromList([1, 2, 3, 4])),
+        throwsA(isA<C2paException>()),
+      );
+    });
+
+    testWidgets('builder sign with an invalid signer throws', (tester) async {
+      final builder = await c2pa.createBuilder(manifest);
       try {
-        await builder.sign(
-          sourceData: imageBytes,
-          mimeType: 'image/jpeg',
-          signer: invalidSigner,
+        await expectLater(
+          builder.sign(
+            sourceData: await unsignedJpeg(),
+            mimeType: 'image/jpeg',
+            signer: const PemSigner(
+              algorithm: SigningAlgorithm.es256,
+              certificatePem: 'INVALID',
+              privateKeyPem: 'INVALID',
+            ),
+          ),
+          throwsA(isA<C2paException>()),
         );
-        fail('Should have thrown for invalid signer');
-      } catch (e) {
-        expect(e, isA<Exception>());
+      } finally {
+        await builder.dispose();
       }
+    });
 
-      builder.dispose();
+    testWidgets('a disposed builder rejects further calls', (tester) async {
+      final builder = await c2pa.createBuilder(manifest);
+      await builder.dispose();
+      expect(() => builder.setNoEmbed(), throwsStateError);
+      expect(builder.toArchive, throwsStateError);
+      // A second dispose does nothing.
+      await builder.dispose();
+    });
+
+    testWidgets('dispose waits for a sign already in flight', (tester) async {
+      final builder = await c2pa.createBuilder(manifest);
+      await builder.setIntent(
+        ManifestIntent.create,
+        DigitalSourceType.digitalCapture,
+      );
+      final signing = builder.sign(
+        sourceData: await unsignedJpeg(),
+        mimeType: 'image/jpeg',
+        signer: validSigner(),
+      );
+      final disposing = builder.dispose();
+      final result = await signing;
+      await disposing;
+      expect(result.signedData, isNotEmpty);
     });
   });
 
@@ -285,21 +267,22 @@ void main() {
         0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
       ]);
 
-      try {
-        final result = await c2pa.readBytes(minimalJpeg, 'image/jpeg');
-        // Should return null or throw for minimal/invalid JPEG
-        expect(result, anyOf(isNull, isA<String>()));
-      } catch (e) {
-        expect(e, isA<Exception>());
-      }
+      await expectLater(
+        c2pa.readBytes(minimalJpeg, 'image/jpeg'),
+        throwsA(isA<C2paException>()),
+      );
     });
 
-    testWidgets('manifest with empty assertions', (tester) async {
+    testWidgets('a manifest without a created action is rejected', (
+      tester,
+    ) async {
       final byteData = await rootBundle.load('assets/test_images/test_unsigned.jpg');
       final imageBytes = byteData.buffer.asUint8List();
 
       final manifest = jsonEncode({
-        'claim_generator': 'test/1.0',
+        'claim_generator_info': [
+          {'name': 'test', 'version': '1.0'},
+        ],
         'title': 'Empty Assertions Test',
         'format': 'image/jpeg',
         'assertions': [],
@@ -311,15 +294,16 @@ void main() {
         privateKeyPem: testKey,
       );
 
-      // Should succeed with empty assertions
-      final result = await c2pa.signBytes(
-        sourceData: imageBytes,
-        mimeType: 'image/jpeg',
-        manifestJson: manifest,
-        signer: signer,
+      // c2pa-rs requires the first action to be c2pa.created or c2pa.opened.
+      await expectLater(
+        c2pa.signBytes(
+          sourceData: imageBytes,
+          mimeType: 'image/jpeg',
+          manifestJson: manifest,
+          signer: signer,
+        ),
+        throwsA(isA<C2paSdkException>()),
       );
-
-      expect(result.signedData.isNotEmpty, true);
     });
 
     testWidgets('manifest with special characters in title', (tester) async {
@@ -327,7 +311,9 @@ void main() {
       final imageBytes = byteData.buffer.asUint8List();
 
       final manifest = jsonEncode({
-        'claim_generator': 'test/1.0',
+        'claim_generator_info': [
+          {'name': 'test', 'version': '1.0'},
+        ],
         'title': 'Test with special chars: !@#\$%^&*()_+-=[]{}|;\':",.<>?/',
         'format': 'image/jpeg',
         'assertions': [
@@ -335,7 +321,10 @@ void main() {
             'label': 'c2pa.actions',
             'data': {
               'actions': [
-                {'action': 'c2pa.created'}
+                {
+                  'action': 'c2pa.created',
+                  'digitalSourceType': 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture',
+                }
               ]
             }
           }
@@ -356,6 +345,14 @@ void main() {
       );
 
       expect(result.signedData.isNotEmpty, true);
+      final store = await c2pa.readManifestFromBytes(
+        result.signedData,
+        'image/jpeg',
+      );
+      expect(
+        store.active!.title,
+        (jsonDecode(manifest) as Map<String, dynamic>)['title'],
+      );
     });
 
     testWidgets('manifest with unicode in title', (tester) async {
@@ -363,15 +360,20 @@ void main() {
       final imageBytes = byteData.buffer.asUint8List();
 
       final manifest = jsonEncode({
-        'claim_generator': 'test/1.0',
-        'title': 'Unicode test: Hello World',
+        'claim_generator_info': [
+          {'name': 'test', 'version': '1.0'},
+        ],
+        'title': 'Unicode test: caf\u00e9, \u0395\u03bb\u03bb\u03b7\u03bd\u03b9\u03ba\u03ac, \u65e5\u672c\u8a9e',
         'format': 'image/jpeg',
         'assertions': [
           {
             'label': 'c2pa.actions',
             'data': {
               'actions': [
-                {'action': 'c2pa.created'}
+                {
+                  'action': 'c2pa.created',
+                  'digitalSourceType': 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture',
+                }
               ]
             }
           }
@@ -392,6 +394,14 @@ void main() {
       );
 
       expect(result.signedData.isNotEmpty, true);
+      final store = await c2pa.readManifestFromBytes(
+        result.signedData,
+        'image/jpeg',
+      );
+      expect(
+        store.active!.title,
+        (jsonDecode(manifest) as Map<String, dynamic>)['title'],
+      );
     });
   });
 

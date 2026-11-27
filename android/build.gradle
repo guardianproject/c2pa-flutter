@@ -49,8 +49,10 @@ android {
     }
 
     dependencies {
-        api("com.github.contentauth:c2pa-android:0.0.9")
+        api("com.github.contentauth:c2pa-android:0.1.2")
         implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+        implementation("com.squareup.okhttp3:okhttp:5.1.0")
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
     }
